@@ -5,7 +5,7 @@ import { User } from '../types';
 import { getSessionUser, subscribeToGlobalUpdates } from '../services/storage';
 import { initializeHost } from '../services/connection';
 import { StampGrid } from './StampGrid';
-import { Sparkles, History, LogOut, RefreshCw, Coffee, Wifi, WifiOff } from 'lucide-react';
+import { Sparkles, History, LogOut, RefreshCw, Coffee, Wifi, WifiOff, Scan } from 'lucide-react';
 import { getRewardInsight } from '../services/geminiService';
 
 interface MemberViewProps {
@@ -19,10 +19,18 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
   const [loadingAi, setLoadingAi] = useState<boolean>(false);
   const [peerId, setPeerId] = useState<string>('');
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [scanNotification, setScanNotification] = useState<boolean>(false);
   const peerRef = useRef<any>(null);
   
   const latestUserRef = useRef<User>(user);
   useEffect(() => { latestUserRef.current = user; }, [user]);
+
+  // Request Notification Permissions on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Polling to keep data fresh if P2P fails
   useEffect(() => {
@@ -56,9 +64,16 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
           if (cmd === 'ADD_STAMP') {
             const count = payload?.count || 1;
             
+            // Notification: System Push + Vibrate
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("Stamp Added!", { 
+                    body: `You received ${count} new stamp${count > 1 ? 's' : ''}!`,
+                    icon: '/favicon.ico'
+                });
+            }
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
             // OPTIMISTIC UPDATE: Update UI immediately without waiting for API
-            // This prevents the "double stamp" bug because we DO NOT call applyStampToUser here.
-            // Admin has already called the API. We just need to reflect the state.
             setUser(prev => {
                 const newStamps = Math.min(prev.stamps + count, prev.maxStamps);
                 const newHistory = [...prev.history, {
@@ -79,6 +94,17 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
 
             return true;
           }
+
+          if (cmd === 'SCAN_ALERT') {
+             // Show internal toast UI
+             setScanNotification(true);
+             setTimeout(() => setScanNotification(false), 3000);
+             
+             // Light Haptic Feedback
+             if (navigator.vibrate) navigator.vibrate(100);
+             return true;
+          }
+
           return false;
         },
         () => latestUserRef.current 
@@ -132,7 +158,16 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
         </div>
       </header>
 
-      <main className="flex-1 max-w-md w-full mx-auto p-6 flex flex-col gap-6">
+      <main className="flex-1 max-w-md w-full mx-auto p-6 flex flex-col gap-6 relative">
+        
+        {/* Scan Notification Toast */}
+        {scanNotification && (
+             <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-black/90 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
+                 <Scan size={18} className="text-brand-400 animate-pulse" />
+                 <span className="font-bold text-sm">Admin Connected</span>
+             </div>
+        )}
+
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center gap-6 relative">
            <div className="absolute top-4 right-4">
               {isConnected ? (

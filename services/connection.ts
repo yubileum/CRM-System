@@ -23,6 +23,9 @@ export const initializeHost = (
           // Pass the count from the payload (default to 1 if missing)
           const success = await onCommand('ADD_STAMP', { count: data.count || 1 });
           conn.send({ type: 'STAMP_ACK', success });
+        } else if (data.type === 'SCAN_ALERT') {
+          // Notify the host that they have been scanned
+          onCommand('SCAN_ALERT');
         }
       });
     });
@@ -98,6 +101,39 @@ export const sendStampSignal = (targetPeerId: string, count: number = 1): Promis
                     resolve(data.success);
                     setTimeout(() => peer.destroy(), 500);
                 }
+            });
+
+            conn.on('error', () => { 
+                clearTimeout(timeout); 
+                peer.destroy();
+                resolve(false); 
+            });
+        });
+
+        peer.on('error', () => {
+            clearTimeout(timeout);
+            resolve(false);
+        });
+    });
+};
+
+export const sendScanSignal = (targetPeerId: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+        const peer = new Peer();
+        // Short timeout for scan alerts (fire and forget)
+        let timeout = setTimeout(() => { peer.destroy(); resolve(false); }, 5000);
+
+        peer.on('open', () => {
+            const conn = peer.connect(targetPeerId, { reliable: true });
+            
+            conn.on('open', () => {
+                conn.send({ type: 'SCAN_ALERT' });
+                // We don't wait for ACK, just send and close
+                setTimeout(() => {
+                    clearTimeout(timeout);
+                    peer.destroy();
+                    resolve(true);
+                }, 500);
             });
 
             conn.on('error', () => { 

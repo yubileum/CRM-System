@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { QrCode, LogOut, Check, AlertCircle, User as UserIcon, X, Download, Wifi, RefreshCw, Users, WifiOff, Cloud, Plus, Minus } from 'lucide-react';
 import { Scanner } from './Scanner';
 import { logAdminTransaction, generateTransactionCSV, generateMembersCSV, applyStampToUser, fetchUserById } from '../services/storage';
-import { sendStampSignal, fetchRemoteUser } from '../services/connection';
+import { sendStampSignal, sendScanSignal, fetchRemoteUser } from '../services/connection';
 import { User } from '../types';
 
 interface AdminViewProps {
@@ -43,6 +43,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
     // SCENARIO A: We have a User ID (Most Reliable)
     if (userId) {
         setStampCount(1); // Reset counter
+
+        // Notify member immediately if connected
+        if (peerId) {
+            sendScanSignal(peerId).catch(err => console.warn("Scan signal failed", err));
+        }
 
         // A1: Optimistic - Use embedded data if available (Fastest)
         if (json && json.n && typeof json.s === 'number') {
@@ -85,6 +90,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
     // SCENARIO B: No ID, but has Peer ID (Legacy P2P Fallback)
     if (peerId) {
         setMessage('Contacting member device (Legacy)...');
+        
+        // Notify member they are being scanned
+        sendScanSignal(peerId).catch(() => {});
+
         const remoteUser = await fetchRemoteUser(peerId);
 
         if (remoteUser) {
