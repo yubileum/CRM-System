@@ -280,6 +280,14 @@ export const applyStampToUser = async (userId: string, count: number = 1): Promi
     if (res?.success) {
       lastUser = res.user;
       SYNC_CHANNEL.postMessage({ type: 'DB_UPDATE' });
+
+      // Check if voucher was earned
+      if (res.voucher) {
+        SYNC_CHANNEL.postMessage({
+          type: 'VOUCHER_EARNED',
+          voucher: res.voucher
+        });
+      }
     } else {
       // If one fails (e.g. max stamps reached), stop and return what we have so far
       break;

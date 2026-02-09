@@ -1,5 +1,5 @@
 /**
- * DICE BACKEND - V12 (Added Checkpoint Configuration)
+ * DICE BACKEND - V13 (Added Voucher System)
  * 1. Run 'setup' function manually first to authorize scopes.
  * 2. Deploy as Web App -> Execute as: "Me", Access: "Anyone".
  */
@@ -12,9 +12,12 @@ function setup() {
   getOrCreateSheet(doc, 'Transactions', [
       'id', 'userId', 'type', 'amount', 'timestamp', 'dateString'
   ]);
-  // NEW: Initialize CheckpointConfig sheet
   getOrCreateSheet(doc, 'CheckpointConfig', [
       'maxStamps', 'checkpoints'
+  ]);
+  // NEW: Initialize Vouchers sheet
+  getOrCreateSheet(doc, 'Vouchers', [
+      'id', 'userId', 'checkpointStampCount', 'rewardName', 'createdAt', 'expiresAt', 'redeemedAt', 'status'
   ]);
   Logger.log("Setup Complete. You can now Deploy.");
 }
@@ -128,15 +131,30 @@ function handleRequest(e) {
         const maxStamps = parseInt(allUsers[userIndex + 1][7] || 10);
         
         if (currentStamps < maxStamps) {
-          usersSheet.getRange(realRow, 7).setValue(currentStamps + 1);
+          const newStampCount = currentStamps + 1;
+          usersSheet.getRange(realRow, 7).setValue(newStampCount);
           const now = new Date();
           txSheet.appendRow(['tx-' + now.getTime(), userId, 'add', 1, now.getTime(), now.toISOString()]);
           SpreadsheetApp.flush();
           
+          // Check if this stamp count is a checkpoint
+          const checkpointConfig = getCheckpointConfiguration(doc);
+          const checkpoint = checkIfCheckpoint(newStampCount, checkpointConfig);
+          let newVoucher = null;
+          
+          if (checkpoint) {
+            // Generate voucher for this checkpoint
+            newVoucher = generateVoucher(doc, userId, newStampCount, checkpoint.reward);
+          }
+          
           const history = getTransactionsForUser(txSheet, userId);
           const updatedRow = [...allUsers[userIndex + 1]];
-          updatedRow[6] = currentStamps + 1;
-          result = { success: true, user: mapRowToUser(updatedRow, history) };
+          updatedRow[6] = newStampCount;
+          result = { 
+            success: true, 
+            user: mapRowToUser(updatedRow, history),
+            voucher: newVoucher // Include voucher if checkpoint reached
+          };
         } else {
           result = { success: false, error: "Max stamps reached." };
         }
@@ -213,6 +231,109 @@ function handleRequest(e) {
       };
     }
 
+    // NEW: Get user vouchers
+    else if (action === 'getUserVouchers') {
+      const userId = String(requestData.userId).trim();
+      const vouchersSheet = getOrCreateSheet(doc, 'Vouchers', [
+        'id', 'userId', 'checkpointStampCount', 'rewardName', 'createdAt', 'expiresAt', 'redeemedAt', 'status'
+      ]);
+      
+      const allVouchers = vouchersSheet.getDataRange().getValues().slice(1);
+      const userVouchers = allVouchers
+        .filter(row => String(row[1]) === userId)
+        .map(row => {
+          const now = new Date();
+          const expiresAt = new Date(row[5]);
+          let status = row[7];
+          
+          // Auto-update expired vouchers
+          if (status === 'active' && expiresAt < now) {
+            status = 'expired';
+          }
+          
+          return {
+            id: row[0],
+            userId: row[1],
+            checkpointStampCount: parseInt(row[2]),
+            rewardName: row[3],
+            createdAt: row[4],
+            expiresAt: row[5],
+            redeemedAt: row[6] || null,
+            status: status
+          };
+        });
+      
+      result = { success: true, vouchers: userVouchers };
+    }
+
+    // NEW: Redeem voucher
+    else if (action === 'redeemVoucher') {
+      const voucherId = String(requestData.voucherId).trim();
+      const userId = String(requestData.userId).trim();
+      
+      const vouchersSheet = getOrCreateSheet(doc, 'Vouchers', [
+        'id', 'userId', 'checkpointStampCount', 'rewardName', 'createdAt', 'expiresAt', 'redeemedAt', 'status'
+      ]);
+      
+      const allVouchers = vouchersSheet.getDataRange().getValues();
+      const voucherIndex = allVouchers.slice(1).findIndex(r => String(r[0]) === voucherId);
+      
+      if (voucherIndex === -1) {
+        result = { success: false, error: "Voucher not found." };
+      } else {
+        const voucherRow = allVouchers[voucherIndex + 1];
+        const voucherUserId = String(voucherRow[1]);
+        const expiresAt = new Date(voucherRow[5]);
+        const currentStatus = voucherRow[7];
+        const now = new Date();
+        
+        // Validate ownership
+        if (voucherUserId !== userId) {
+          result = { success: false, error: "This voucher does not belong to you." };
+        }
+        // Check if already redeemed
+        else if (currentStatus === 'redeemed') {
+          result = { success: false, error: "This voucher has already been redeemed." };
+        }
+        // Check if expired
+        else if (expiresAt < now || currentStatus === 'expired') {
+          result = { success: false, error: "This voucher has expired." };
+        }
+        else {
+          // Redeem the voucher
+          const realRow = voucherIndex + 2;
+          vouchersSheet.getRange(realRow, 7).setValue(now.toISOString()); // redeemedAt
+          vouchersSheet.getRange(realRow, 8).setValue('redeemed'); // status
+          
+          // Log transaction
+          txSheet.appendRow([
+            'tx-' + now.getTime(),
+            userId,
+            'voucher_redeemed',
+            1,
+            now.getTime(),
+            now.toISOString()
+          ]);
+          
+          SpreadsheetApp.flush();
+          
+          result = {
+            success: true,
+            voucher: {
+              id: voucherRow[0],
+              userId: voucherRow[1],
+              checkpointStampCount: parseInt(voucherRow[2]),
+              rewardName: voucherRow[3],
+              createdAt: voucherRow[4],
+              expiresAt: voucherRow[5],
+              redeemedAt: now.toISOString(),
+              status: 'redeemed'
+            }
+          };
+        }
+      }
+    }
+
     else {
       result = { success: false, error: "Unknown action" };
     }
@@ -287,4 +408,106 @@ function mapRowToUser(row, history) {
 
 function jsonResponse(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ========== VOUCHER HELPER FUNCTIONS ==========
+
+/**
+ * Check if a stamp count is a checkpoint
+ */
+function checkIfCheckpoint(stampCount, checkpointConfig) {
+  if (!checkpointConfig || !checkpointConfig.checkpoints) return null;
+  const checkpoint = checkpointConfig.checkpoints.find(cp => cp.stampCount === stampCount);
+  return checkpoint || null;
+}
+
+/**
+ * Generate a voucher for a user when they reach a checkpoint
+ */
+function generateVoucher(doc, userId, stampCount, rewardName) {
+  const vouchersSheet = getOrCreateSheet(doc, 'Vouchers', [
+    'id', 'userId', 'checkpointStampCount', 'rewardName', 'createdAt', 'expiresAt', 'redeemedAt', 'status'
+  ]);
+  
+  const now = new Date();
+  const expiresAt = calculateExpiryDate(now, 30); // 30 days expiry
+  const voucherId = 'voucher-' + now.getTime() + '-' + Math.random().toString(36).substr(2, 9);
+  
+  const voucherRow = [
+    voucherId,
+    userId,
+    stampCount,
+    rewardName,
+    now.toISOString(),
+    expiresAt.toISOString(),
+    '', // redeemedAt - empty initially
+    'active'
+  ];
+  
+  vouchersSheet.appendRow(voucherRow);
+  
+  // Log transaction
+  const txSheet = getOrCreateSheet(doc, 'Transactions', [
+    'id', 'userId', 'type', 'amount', 'timestamp', 'dateString'
+  ]);
+  txSheet.appendRow([
+    'tx-' + now.getTime(),
+    userId,
+    'voucher_earned',
+    1,
+    now.getTime(),
+    now.toISOString()
+  ]);
+  
+  SpreadsheetApp.flush();
+  
+  return {
+    id: voucherId,
+    userId: userId,
+    checkpointStampCount: stampCount,
+    rewardName: rewardName,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    redeemedAt: null,
+    status: 'active'
+  };
+}
+
+/**
+ * Calculate expiry date (default 30 days from now)
+ */
+function calculateExpiryDate(fromDate, days) {
+  const expiry = new Date(fromDate);
+  expiry.setDate(expiry.getDate() + days);
+  return expiry;
+}
+
+/**
+ * Get checkpoint configuration
+ */
+function getCheckpointConfiguration(doc) {
+  const configSheet = getOrCreateSheet(doc, 'CheckpointConfig', ['maxStamps', 'checkpoints']);
+  const data = configSheet.getDataRange().getValues();
+  
+  if (data.length < 2) {
+    return {
+      maxStamps: 10,
+      checkpoints: [
+        { stampCount: 3, reward: 'Free Lychee Tea' },
+        { stampCount: 5, reward: 'diskon 15% off game' },
+        { stampCount: 7, reward: 'Free french fries' },
+        { stampCount: 10, reward: 'Free all day pass' }
+      ]
+    };
+  }
+  
+  const maxStamps = parseInt(data[1][0]) || 10;
+  let checkpoints = [];
+  try {
+    checkpoints = JSON.parse(data[1][1] || '[]');
+  } catch (e) {
+    checkpoints = [];
+  }
+  
+  return { maxStamps, checkpoints };
 }

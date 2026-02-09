@@ -16,7 +16,7 @@ export interface User {
 export interface StampEvent {
   id: string;
   timestamp: number;
-  type: 'add' | 'redeem';
+  type: 'add' | 'redeem' | 'voucher_earned' | 'voucher_redeemed';
   amount: number;
 }
 
@@ -28,6 +28,17 @@ export interface StampCheckpoint {
 export interface StampConfig {
   maxStamps: number;
   checkpoints: StampCheckpoint[];
+}
+
+export interface Voucher {
+  id: string;
+  userId: string;
+  checkpointStampCount: number;
+  rewardName: string;
+  createdAt: string;
+  expiresAt: string;
+  redeemedAt?: string | null;
+  status: 'active' | 'redeemed' | 'expired';
 }
 
 export enum AppRole {

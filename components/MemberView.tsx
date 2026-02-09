@@ -1,13 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
 import QRCode from 'react-qr-code';
-import { User, StampConfig, StampEvent } from '../types';
+import { User, StampConfig, StampEvent, Voucher } from '../types';
 import { getSessionUser, subscribeToGlobalUpdates, getUserHistory } from '../services/storage';
 import { initializeHost } from '../services/connection';
 import { StampGrid } from './StampGrid';
-import { Sparkles, History, LogOut, RefreshCw, Wifi, WifiOff, Scan, Gift, TrendingUp, Award, Zap, X } from 'lucide-react';
+import { CheckpointRewardPopup } from './CheckpointRewardPopup';
+import { MyVouchers } from './MyVouchers';
+import { VoucherRedemptionPopup } from './VoucherRedemptionPopup';
+import { Sparkles, History, LogOut, Wifi, WifiOff, Scan, Gift, TrendingUp, Award, Zap, X, Ticket } from 'lucide-react';
 import { getRewardInsight } from '../services/geminiService';
 import { getBrandConfig } from '../services/branding';
 import { getStampConfig, fetchStampConfig } from '../services/stampConfig';
+import { getActiveVouchers, redeemVoucher as redeemVoucherAPI, clearVoucherCache } from '../services/voucherService';
 
 interface MemberViewProps {
   currentUser: User;
@@ -25,10 +29,15 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [historyEvents, setHistoryEvents] = useState<StampEvent[]>(user.history || []);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const peerRef = useRef<any>(null);
   const brandConfig = getBrandConfig();
   const [stampConfig, setStampConfig] = useState<StampConfig>(getStampConfig());
+
+  // Voucher states
+  const [newVoucher, setNewVoucher] = useState<Voucher | null>(null);
+  const [showMyVouchers, setShowMyVouchers] = useState<boolean>(false);
+  const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
+  const [activeVoucherCount, setActiveVoucherCount] = useState<number>(0);
 
   // No need to fetch on mount - getStampConfig() handles caching and background refresh
   // Config will update automatically when cache refreshes
@@ -47,9 +56,21 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
     }
   }, []);
 
+  // Load active voucher count
+  useEffect(() => {
+    const loadVoucherCount = async () => {
+      try {
+        const activeVouchers = await getActiveVouchers(user.id);
+        setActiveVoucherCount(activeVouchers.length);
+      } catch (error) {
+        console.error('Failed to load voucher count:', error);
+      }
+    };
+    loadVoucherCount();
+  }, [user.id]);
+
   useEffect(() => {
     const fetchLatest = async (isManual = false) => {
-      if (isManual) setIsSyncing(true);
       try {
         const updated = await getSessionUser(isManual);
         if (updated) {
@@ -57,8 +78,8 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
             setUser(updated);
           }
         }
-      } finally {
-        if (isManual) setIsSyncing(false);
+      } catch (error) {
+        console.error('Failed to fetch latest user:', error);
       }
     };
 
@@ -75,6 +96,15 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
       const updated = await getSessionUser();
       if (updated) setUser(updated);
     });
+
+    // Listen for voucher earned events
+    const voucherChannel = new BroadcastChannel('dice_global_sync');
+    const handleVoucherEvent = (event: MessageEvent) => {
+      if (event.data?.type === 'VOUCHER_EARNED' && event.data?.voucher) {
+        handleVoucherEarned(event.data.voucher);
+      }
+    };
+    voucherChannel.addEventListener('message', handleVoucherEvent);
 
     const initP2P = async () => {
       const { peer, peerId: id } = await initializeHost(
@@ -133,6 +163,8 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
     initP2P();
     return () => {
       unsubscribe();
+      voucherChannel.removeEventListener('message', handleVoucherEvent);
+      voucherChannel.close();
       if (peerRef.current) peerRef.current.destroy();
     };
   }, []);
@@ -153,6 +185,39 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
     const text = await getRewardInsight(user);
     setAiInsight(text);
     setLoadingAi(false);
+  };
+
+  // Voucher handlers
+  const handleVoucherEarned = (voucher: Voucher) => {
+    setNewVoucher(voucher);
+    // Refresh voucher count
+    getActiveVouchers(user.id).then(vouchers => {
+      setActiveVoucherCount(vouchers.length);
+    });
+  };
+
+  const handleUseVoucher = (voucher: Voucher) => {
+    setSelectedVoucher(voucher);
+    setShowMyVouchers(false);
+  };
+
+  const handleRedeemVoucher = async () => {
+    if (!selectedVoucher) return;
+
+    try {
+      const result = await redeemVoucherAPI(selectedVoucher.id, user.id);
+      if (result.success) {
+        // Clear cache and refresh count
+        clearVoucherCache(user.id);
+        const activeVouchers = await getActiveVouchers(user.id);
+        setActiveVoucherCount(activeVouchers.length);
+      } else {
+        alert(result.error || 'Failed to redeem voucher');
+      }
+    } catch (error) {
+      console.error('Redemption error:', error);
+      alert('Failed to redeem voucher');
+    }
   };
 
   const qrPayload = {
@@ -189,25 +254,19 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{brandConfig.tagline}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                const fetchLatest = async () => {
-                  setIsSyncing(true);
-                  try {
-                    const updated = await getSessionUser(true);
-                    if (updated) setUser(updated);
-                  } finally {
-                    setIsSyncing(false);
-                  }
-                };
-                fetchLatest();
-              }}
-              disabled={isSyncing}
-              className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all"
-              title="Sync Data"
+              onClick={() => setShowMyVouchers(true)}
+              className="relative px-4 py-2 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+              title="My Vouchers"
             >
-              <RefreshCw size={18} className={isSyncing ? "animate-spin text-brand-500" : ""} />
+              <Ticket size={18} />
+              <span>My Vouchers</span>
+              {activeVoucherCount > 0 && (
+                <span className="bg-white text-brand-600 text-xs font-bold rounded-full px-2 py-0.5 ml-1">
+                  {activeVoucherCount}
+                </span>
+              )}
             </button>
             <button
               onClick={onLogout}
@@ -381,35 +440,74 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
                       <p className="text-gray-500 font-bold animate-pulse">Fetching your history...</p>
                     </div>
                   ) : historyEvents.length > 0 ? (
-                    historyEvents.slice().reverse().map(evt => (
-                      <div key={evt.id} className="p-4 rounded-3xl bg-gray-50/50 border border-gray-100 flex justify-between items-center group hover:bg-white hover:shadow-md transition-all">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${evt.type === 'add' ? 'bg-green-100' : 'bg-orange-100'}`}>
-                            {evt.type === 'add' ? (
-                              <TrendingUp size={20} className="text-green-600" />
-                            ) : (
-                              <Gift size={20} className="text-orange-600" />
-                            )}
+                    historyEvents.slice().reverse().map(evt => {
+                      // Determine event display properties
+                      const getEventDisplay = () => {
+                        switch (evt.type) {
+                          case 'add':
+                            return {
+                              icon: <TrendingUp size={20} className="text-green-600" />,
+                              bgColor: 'bg-green-100',
+                              label: 'Stamp Collected',
+                              badge: `+${evt.amount || 1}`,
+                              badgeColor: 'bg-green-500 text-white'
+                            };
+                          case 'voucher_earned':
+                            return {
+                              icon: <Gift size={20} className="text-blue-600" />,
+                              bgColor: 'bg-blue-100',
+                              label: 'Voucher Earned',
+                              badge: '🎁',
+                              badgeColor: 'bg-blue-500 text-white'
+                            };
+                          case 'voucher_redeemed':
+                            return {
+                              icon: <Gift size={20} className="text-orange-600" />,
+                              bgColor: 'bg-orange-100',
+                              label: 'Voucher Redeemed',
+                              badge: 'USED',
+                              badgeColor: 'bg-orange-500 text-white'
+                            };
+                          case 'redeem':
+                          default:
+                            return {
+                              icon: <Award size={20} className="text-purple-600" />,
+                              bgColor: 'bg-purple-100',
+                              label: 'Reward Redeemed',
+                              badge: 'USED',
+                              badgeColor: 'bg-purple-500 text-white'
+                            };
+                        }
+                      };
+
+                      const display = getEventDisplay();
+
+                      return (
+                        <div key={evt.id} className="p-4 rounded-3xl bg-gray-50/50 border border-gray-100 flex justify-between items-center group hover:bg-white hover:shadow-md transition-all">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${display.bgColor}`}>
+                              {display.icon}
+                            </div>
+                            <div>
+                              <p className="font-black text-gray-900 text-sm">
+                                {display.label}
+                              </p>
+                              <p className="text-[10px] text-gray-500 font-bold">
+                                {new Date(evt.timestamp).toLocaleString(undefined, {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-black text-gray-900 text-sm">
-                              {evt.type === 'add' ? 'Stamp Collected' : 'Reward Redeemed'}
-                            </p>
-                            <p className="text-[10px] text-gray-500 font-bold">
-                              {new Date(evt.timestamp).toLocaleString(undefined, {
-                                day: 'numeric',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
-                          </div>
+                          <span className={`text-sm font-black px-4 py-2 rounded-xl shadow-sm ${display.badgeColor}`}>
+                            {display.badge}
+                          </span>
                         </div>
-                        <span className={`text-sm font-black px-4 py-2 rounded-xl shadow-sm ${evt.type === 'add' ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>
-                          {evt.type === 'add' ? `+${evt.amount || 1}` : 'USED'}
-                        </span>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="py-20 text-center space-y-4">
                       <div className="w-20 h-20 bg-gray-50 rounded-[2rem] flex items-center justify-center mx-auto border border-gray-100">
@@ -436,6 +534,34 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
           </div>
         )}
       </main>
+
+      {/* Voucher Popups */}
+      {newVoucher && (
+        <CheckpointRewardPopup
+          voucher={newVoucher}
+          onUseNow={() => {
+            setSelectedVoucher(newVoucher);
+            setNewVoucher(null);
+          }}
+          onSaveLater={() => setNewVoucher(null)}
+        />
+      )}
+
+      {showMyVouchers && (
+        <MyVouchers
+          userId={user.id}
+          onUseVoucher={handleUseVoucher}
+          onClose={() => setShowMyVouchers(false)}
+        />
+      )}
+
+      {selectedVoucher && (
+        <VoucherRedemptionPopup
+          voucher={selectedVoucher}
+          onRedeem={handleRedeemVoucher}
+          onClose={() => setSelectedVoucher(null)}
+        />
+      )}
 
       <style>{`
         @keyframes shimmer {
