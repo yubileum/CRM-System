@@ -254,25 +254,25 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{brandConfig.tagline}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setShowMyVouchers(true)}
-              className="relative px-4 py-2 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+              className="relative px-3 py-2 sm:px-4 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-md hover:shadow-lg transform hover:scale-105"
               title="My Vouchers"
             >
               <Ticket size={18} />
-              <span>My Vouchers</span>
+              <span className="hidden sm:inline">My Vouchers</span>
               {activeVoucherCount > 0 && (
-                <span className="bg-white text-brand-600 text-xs font-bold rounded-full px-2 py-0.5 ml-1">
+                <span className="absolute -top-1 -right-1 sm:static sm:bg-white sm:text-brand-600 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 sm:w-auto sm:h-auto flex items-center justify-center sm:px-2 sm:py-0.5 sm:ml-1">
                   {activeVoucherCount}
                 </span>
               )}
             </button>
             <button
               onClick={onLogout}
-              className="px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 text-sm font-bold transition-all"
+              className="px-3 py-2 sm:px-4 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 text-sm font-bold transition-all"
             >
-              <LogOut size={16} /> Logout
+              <LogOut size={16} /> <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
