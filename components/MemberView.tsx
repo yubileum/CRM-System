@@ -30,14 +30,8 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
   const brandConfig = getBrandConfig();
   const [stampConfig, setStampConfig] = useState<StampConfig>(getStampConfig());
 
-  // Fetch latest config from API on mount
-  useEffect(() => {
-    const loadConfig = async () => {
-      const config = await fetchStampConfig();
-      setStampConfig(config);
-    };
-    loadConfig();
-  }, []);
+  // No need to fetch on mount - getStampConfig() handles caching and background refresh
+  // Config will update automatically when cache refreshes
 
   // Calculate next checkpoint
   const nextCheckpoint = stampConfig.checkpoints

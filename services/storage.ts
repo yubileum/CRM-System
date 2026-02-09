@@ -19,42 +19,73 @@ export const setApiUrl = (url: string) => {
 export const getApiUrl = (): string | null => {
   return STATIC_API_URL;
 };
+// Request deduplication - prevent duplicate simultaneous requests
+const pendingRequests = new Map<string, Promise<any>>();
 
 const callApi = async (action: string, params: Record<string, string> = {}, payload?: any) => {
   const baseUrl = getApiUrl();
   if (!baseUrl) return null;
 
+  // Create request key for deduplication (only for GET requests)
+  const requestKey = !payload ? `${action}:${JSON.stringify(params)}` : null;
+
+  // Check if this exact request is already in flight
+  if (requestKey && pendingRequests.has(requestKey)) {
+    console.log(`[DEDUPE] Reusing in-flight request for ${action}`);
+    return pendingRequests.get(requestKey);
+  }
+
   const url = new URL(baseUrl);
   url.searchParams.append('action', action);
-  // Add cache buster to prevent browser caching of GET requests
-  url.searchParams.append('_t', Date.now().toString());
+
+  // Only add cache buster for write operations (POST) or actions that need fresh data
+  const needsCacheBuster = payload || action === 'addStamp' || action === 'login' || action === 'register';
+  if (needsCacheBuster) {
+    url.searchParams.append('_t', Date.now().toString());
+  }
 
   Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
 
-  try {
-    const options: RequestInit = {
-      method: payload ? 'POST' : 'GET',
-      mode: 'cors',
-      // Do NOT set Content-Type header for GAS Web Apps to avoid preflight OPTIONS issues
-    };
-
-    if (payload) {
-      options.body = JSON.stringify(payload);
-    }
-
-    const response = await fetch(url.toString(), options);
-    const text = await response.text();
-
+  const executeRequest = async () => {
     try {
-      return JSON.parse(text);
-    } catch (e) {
-      console.error("API returned non-JSON:", text);
-      return { success: false, fatal: true, error: 'Cannot connect to database. Check deployment permissions.' };
+      const options: RequestInit = {
+        method: payload ? 'POST' : 'GET',
+        mode: 'cors',
+        // Do NOT set Content-Type header for GAS Web Apps to avoid preflight OPTIONS issues
+      };
+
+      if (payload) {
+        options.body = JSON.stringify(payload);
+      }
+
+      const response = await fetch(url.toString(), options);
+      const text = await response.text();
+
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        console.error("API returned non-JSON:", text);
+        return { success: false, fatal: true, error: 'Cannot connect to database. Check deployment permissions.' };
+      }
+    } catch (err) {
+      console.error(`API Error (${action}):`, err);
+      return { success: false, fatal: true, error: 'Network connection failed' };
+    } finally {
+      // Remove from pending requests when done
+      if (requestKey) {
+        pendingRequests.delete(requestKey);
+      }
     }
-  } catch (err) {
-    console.error(`API Error (${action}):`, err);
-    return { success: false, fatal: true, error: 'Network connection failed' };
+  };
+
+  const requestPromise = executeRequest();
+
+  // Store in pending requests for deduplication
+  if (requestKey) {
+    pendingRequests.set(requestKey, requestPromise);
   }
+
+  return requestPromise;
 };
 
 // --- AUTH SERVICES ---

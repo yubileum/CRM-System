@@ -6,6 +6,7 @@ import { AdminLogin } from './components/AdminLogin';
 import { User } from './types';
 import { getSessionUser, logoutUser, checkAdminSession } from './services/storage';
 import { initializeBranding } from './services/branding';
+import { fetchStampConfig } from './services/stampConfig';
 
 const App: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -18,6 +19,12 @@ const App: React.FC = () => {
     initializeBranding();
 
     const initApp = async () => {
+      // Preload stamp configuration in parallel with other initialization
+      // This ensures checkpoint data is ready immediately
+      fetchStampConfig().catch(err => {
+        console.warn('Failed to preload stamp config:', err);
+      });
+
       // Check if URL has #admin hash
       if (window.location.hash === '#admin') {
         setShowAdminLogin(true);

@@ -1,7 +1,7 @@
 import { StampConfig, StampCheckpoint } from '../types';
 
 const STAMP_CONFIG_CACHE_KEY = 'dice_stamp_config_cache_v1';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes (increased from 5)
 
 // API URL - same as storage.ts
 const API_URL = 'https://script.google.com/macros/s/AKfycbwJUABZ9PsGEv91FjlB33kOAsYsMm6oz77isOwtvw2JQQNSpvtwkBdby2EzyZgB7qcmVg/exec';
@@ -10,9 +10,10 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwJUABZ9PsGEv91FjlB33kO
 const DEFAULT_CONFIG: StampConfig = {
     maxStamps: 10,
     checkpoints: [
-        { stampCount: 3, reward: 'Free iced tea' },
-        { stampCount: 5, reward: 'Free drink upgrade' },
-        { stampCount: 10, reward: 'Free beverage' }
+        { stampCount: 3, reward: 'Free Lychee Tea' },
+        { stampCount: 5, reward: 'diskon 15% off game' },
+        { stampCount: 7, reward: 'Free french fries' },
+        { stampCount: 10, reward: 'Free all day pass' }
     ]
 };
 
@@ -21,47 +22,63 @@ interface CachedConfig {
     timestamp: number;
 }
 
+// Track if a fetch is in progress to prevent duplicate requests
+let fetchInProgress: Promise<StampConfig> | null = null;
+
 /**
  * Fetch stamp configuration from API
  */
 const fetchConfigFromAPI = async (): Promise<StampConfig> => {
-    try {
-        const url = new URL(API_URL);
-        url.searchParams.append('action', 'getCheckpointConfig');
-        url.searchParams.append('_t', Date.now().toString());
-
-        const response = await fetch(url.toString(), {
-            method: 'GET',
-            mode: 'cors'
-        });
-
-        const data = await response.json();
-
-        if (data.success && data.config) {
-            return data.config;
-        }
-
-        console.warn('API returned unsuccessful response, using default config');
-        return DEFAULT_CONFIG;
-    } catch (error) {
-        console.error('Failed to fetch stamp config from API:', error);
-        return DEFAULT_CONFIG;
+    // If fetch is already in progress, return that promise
+    if (fetchInProgress) {
+        console.log('[STAMP_CONFIG] Reusing in-flight config fetch');
+        return fetchInProgress;
     }
+
+    fetchInProgress = (async () => {
+        try {
+            const url = new URL(API_URL);
+            url.searchParams.append('action', 'getCheckpointConfig');
+            // No cache buster needed - this is a read operation that benefits from caching
+
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                mode: 'cors'
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.config) {
+                return data.config;
+            }
+
+            console.warn('API returned unsuccessful response, using default config');
+            return DEFAULT_CONFIG;
+        } catch (error) {
+            console.error('Failed to fetch stamp config from API:', error);
+            return DEFAULT_CONFIG;
+        } finally {
+            fetchInProgress = null;
+        }
+    })();
+
+    return fetchInProgress;
 };
 
 /**
  * Get cached configuration if still valid
  */
-const getCachedConfig = (): StampConfig | null => {
+const getCachedConfig = (): { config: StampConfig; isStale: boolean } | null => {
     try {
         const cached = localStorage.getItem(STAMP_CONFIG_CACHE_KEY);
         if (cached) {
             const { config, timestamp }: CachedConfig = JSON.parse(cached);
             const age = Date.now() - timestamp;
 
-            if (age < CACHE_DURATION) {
-                return config;
-            }
+            return {
+                config,
+                isStale: age >= CACHE_DURATION
+            };
         }
     } catch (e) {
         console.error('Failed to read cached config:', e);
@@ -91,10 +108,17 @@ export const getStampConfig = (): StampConfig => {
     // Try cache first
     const cached = getCachedConfig();
     if (cached) {
-        return cached;
+        // If cache is stale, refresh in background
+        if (cached.isStale) {
+            console.log('[STAMP_CONFIG] Cache stale, refreshing in background');
+            fetchConfigFromAPI().then(config => {
+                cacheConfig(config);
+            });
+        }
+        return cached.config;
     }
 
-    // Return default synchronously, fetch async in background
+    // No cache - return default and fetch in background
     fetchConfigFromAPI().then(config => {
         cacheConfig(config);
     });
