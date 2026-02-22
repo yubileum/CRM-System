@@ -1,13 +1,14 @@
 /**
- * DICE BACKEND - V13 (Added Voucher System)
+ * DICE BACKEND - V14 (Added Admin Referral Code)
  * 1. Run 'setup' function manually first to authorize scopes.
  * 2. Deploy as Web App -> Execute as: "Me", Access: "Anyone".
+ * COLUMN ORDER: id | name | email | phone | address | referralCode | birthDate | currentStamps | maxStamps | createdAt
  */
 
 function setup() {
   const doc = SpreadsheetApp.getActiveSpreadsheet();
   getOrCreateSheet(doc, 'Users', [
-      'id', 'name', 'email', 'phone', 'address', 'birthDate', 'currentStamps', 'maxStamps', 'createdAt'
+      'id', 'name', 'email', 'phone', 'address', 'referralCode', 'birthDate', 'currentStamps', 'maxStamps', 'createdAt'
   ]);
   getOrCreateSheet(doc, 'Transactions', [
       'id', 'userId', 'type', 'amount', 'timestamp', 'dateString'
@@ -43,7 +44,7 @@ function handleRequest(e) {
 
     const action = requestData.action;
     const usersSheet = getOrCreateSheet(doc, 'Users', [
-      'id', 'name', 'email', 'phone', 'address', 'birthDate', 'currentStamps', 'maxStamps', 'createdAt'
+      'id', 'name', 'email', 'phone', 'address', 'referralCode', 'birthDate', 'currentStamps', 'maxStamps', 'createdAt'
     ]);
     
     const txSheet = getOrCreateSheet(doc, 'Transactions', [
@@ -67,9 +68,10 @@ function handleRequest(e) {
           requestData.email,
           String(requestData.phone || '').trim(),
           requestData.address || '',
+          String(requestData.adminReferral || '').trim(),  // referralCode
           String(requestData.birthDate || '').trim(),
-          0,
-          10,
+          0,   // currentStamps
+          10,  // maxStamps
           new Date().toISOString()
         ];
         usersSheet.appendRow(newUser);
@@ -88,7 +90,7 @@ function handleRequest(e) {
       } else {
          const row = allUsers.slice(1).find(r => {
            const sheetPhone = String(r[3]).trim().replace(/\s/g, '');
-           const sheetDate = formatDate(r[5]); 
+           const sheetDate = formatDate(r[6]); // birthDate is now col index 6
            return sheetPhone === inputPhone && sheetDate === inputBirth;
          });
 
@@ -127,12 +129,12 @@ function handleRequest(e) {
         result = { success: false, error: "User not found." };
       } else {
         const realRow = userIndex + 2;
-        const currentStamps = parseInt(allUsers[userIndex + 1][6] || 0); 
-        const maxStamps = parseInt(allUsers[userIndex + 1][7] || 10);
+        const currentStamps = parseInt(allUsers[userIndex + 1][7] || 0); // stamps now col 7
+        const maxStamps = parseInt(allUsers[userIndex + 1][8] || 10);    // maxStamps now col 8
         
         if (currentStamps < maxStamps) {
           const newStampCount = currentStamps + 1;
-          usersSheet.getRange(realRow, 7).setValue(newStampCount);
+          usersSheet.getRange(realRow, 8).setValue(newStampCount); // currentStamps is col 8 (1-indexed)
           const now = new Date();
           txSheet.appendRow(['tx-' + now.getTime(), userId, 'add', 1, now.getTime(), now.toISOString()]);
           SpreadsheetApp.flush();
@@ -398,10 +400,11 @@ function mapRowToUser(row, history) {
     email: row[2],
     phone: row[3],
     address: row[4],
-    birthDate: formatDate(row[5]),
-    stamps: parseInt(row[6] || 0),
-    maxStamps: parseInt(row[7] || 10),
-    createdAt: row[8] || new Date().toISOString(),
+    referralCode: row[5] || '',      // NEW: Admin referral code
+    birthDate: formatDate(row[6]),   // shifted from 5 -> 6
+    stamps: parseInt(row[7] || 0),   // shifted from 6 -> 7
+    maxStamps: parseInt(row[8] || 10), // shifted from 7 -> 8
+    createdAt: row[9] || new Date().toISOString(), // shifted from 8 -> 9
     history: history
   };
 }

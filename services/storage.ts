@@ -244,6 +244,7 @@ export const registerUser = async (details: {
   phone: string;
   address: string;
   birthDate: string;
+  adminReferral?: string;
 }): Promise<User> => {
   // Standardize phone number to +62 format before registration
   const standardizedPhone = standardizePhone(details.phone);

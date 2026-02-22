@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Coffee, ArrowRight, Mail, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles } from 'lucide-react';
+import { Coffee, ArrowRight, Mail, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles, Tag } from 'lucide-react';
 import { loginUser, registerUser } from '../services/storage';
 import { User } from '../types';
 import { getBrandConfig } from '../services/branding';
@@ -46,6 +46,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
+  const [adminReferral, setAdminReferral] = useState('');
 
   // Handle phone number input - only allow digits, no leading 0
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,8 +87,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
     try {
       if (isRegistering) {
-        if (!name || !email || !phone) {
-          setError('Please fill in all required fields.');
+        if (!name || !email || !phone || !address || !birthDate || !adminReferral) {
+          setError('Please fill in all required fields, including the Admin Referral Code.');
           setIsLoading(false);
           return;
         }
@@ -98,15 +99,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
           return;
         }
 
+        if (birthDate.length !== 10) {
+          setError('Please enter a valid birth date in DD/MM/YYYY format.');
+          setIsLoading(false);
+          return;
+        }
+
         const fullPhone = countryCode + phone;
-        const formattedBirthDate = birthDate ? convertDateFormat(birthDate) : '';
+        const formattedBirthDate = convertDateFormat(birthDate);
 
         const newUser = await registerUser({
           name,
           email,
           phone: fullPhone,
           address,
-          birthDate: formattedBirthDate
+          birthDate: formattedBirthDate,
+          adminReferral
         });
         onLogin(newUser, false);
       } else {
@@ -310,12 +318,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Kelapa Gading"
                 icon={MapPin}
+                required
               />
 
               {/* Birth Date Input */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-bold text-gray-900 tracking-tight">
-                  Birth Date
+                  Birth Date <span className="text-red-500">*</span>
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-500 transition-colors">
@@ -325,6 +334,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                     type="text"
                     value={birthDate}
                     onChange={handleBirthDateChange}
+                    required
                     placeholder="DD/MM/YYYY"
                     maxLength={10}
                     className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all font-medium hover:border-gray-300"
@@ -333,6 +343,30 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
                   <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
                   Example: 12/05/1998
+                </p>
+              </div>
+
+              {/* Admin Referral Code Input */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-bold text-gray-900 tracking-tight">
+                  Admin Referral Code <span className="text-red-500">*</span>
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-500 transition-colors">
+                    <Tag size={18} />
+                  </div>
+                  <input
+                    type="text"
+                    value={adminReferral}
+                    onChange={(e) => setAdminReferral(e.target.value)}
+                    required
+                    placeholder="Enter admin's name"
+                    className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all font-medium hover:border-gray-300"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  Ask your cashier or admin for this code
                 </p>
               </div>
             </div>
@@ -366,6 +400,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
               setName('');
               setEmail('');
               setAddress('');
+              setAdminReferral('');
             }}
             className="text-sm font-black text-brand-600 hover:text-brand-700 flex items-center justify-center gap-2 mx-auto py-2 px-6 rounded-xl hover:bg-brand-50 transition-all uppercase tracking-wider group"
           >
