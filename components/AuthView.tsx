@@ -346,10 +346,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 </p>
               </div>
 
-              {/* Admin Referral Code Input */}
+              {/* Game Master Referral Input */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-bold text-gray-900 tracking-tight">
-                  Admin Referral Code <span className="text-red-500">*</span>
+                  Game Master Referral <span className="text-red-500">*</span>
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-500 transition-colors">
@@ -360,13 +360,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                     value={adminReferral}
                     onChange={(e) => setAdminReferral(e.target.value)}
                     required
-                    placeholder="Enter admin's name"
+                    placeholder="Enter game master's name"
                     className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all font-medium hover:border-gray-300"
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
                   <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                  Ask your cashier or admin for this code
+                  Ask your game master for this
                 </p>
               </div>
             </div>
