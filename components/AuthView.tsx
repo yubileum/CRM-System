@@ -87,8 +87,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
     try {
       if (isRegistering) {
-        if (!name || !email || !phone || !address || !birthDate || !adminReferral) {
-          setError('Please fill in all required fields, including the Admin Referral Code.');
+        if (!name || !email || !phone || !address || !birthDate) {
+          setError('Please fill in all required fields.');
           setIsLoading(false);
           return;
         }
@@ -346,10 +346,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 </p>
               </div>
 
-              {/* Game Master Referral Input */}
+              {/* Game Master Referral Input (Optional) */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-bold text-gray-900 tracking-tight">
-                  Game Master Referral <span className="text-red-500">*</span>
+                  Game Master Referral
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-500 transition-colors">
@@ -359,14 +359,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                     type="text"
                     value={adminReferral}
                     onChange={(e) => setAdminReferral(e.target.value)}
-                    required
-                    placeholder="Enter game master's name"
+                    placeholder="Enter game master's name (Optional)"
                     className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all font-medium hover:border-gray-300"
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
                   <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                  Ask your game master for this
+                  Ask your game master for this (leave blank if none)
                 </p>
               </div>
             </div>
