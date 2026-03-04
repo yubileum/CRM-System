@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Footer } from './Footer';
 import { Shield, ArrowRight, Lock, User as UserIcon, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { setAdminSession } from '../services/storage';
 import { getBrandConfig } from '../services/branding';
@@ -131,6 +132,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
                         <span>←</span>
                         Back to Member Login
                     </a>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-100/50">
+                    <Footer />
                 </div>
             </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Footer } from './Footer';
 import { Coffee, ArrowRight, Mail, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles, Tag } from 'lucide-react';
 import { loginUser, registerUser } from '../services/storage';
 import { User } from '../types';
@@ -408,6 +409,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
             </span>
             {isRegistering ? 'Have an account? Login' : 'New here? Register now'}
           </button>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-gray-100/50">
+          <Footer />
         </div>
       </div>
     </div>

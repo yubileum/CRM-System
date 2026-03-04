@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Footer } from './Footer';
 import { Database, Copy, Check, ArrowRight, FileSpreadsheet, Server, Zap, LogOut } from 'lucide-react';
 import { setApiUrl } from '../services/storage';
 
@@ -144,6 +145,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete, onLogout }) =>
           )}
 
         </div>
+        <Footer light />
       </div>
     </div>
   );

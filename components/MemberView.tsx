@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { Footer } from './Footer';
 import QRCode from 'react-qr-code';
 import { User, StampConfig, StampEvent, Voucher } from '../types';
 import { getSessionUser, subscribeToGlobalUpdates, getUserHistory } from '../services/storage';
@@ -533,6 +534,8 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
             </div>
           </div>
         )}
+
+        <Footer />
       </main>
 
       {/* Voucher Popups */}

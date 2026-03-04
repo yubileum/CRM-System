@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Footer } from './components/Footer';
 import { MemberView } from './components/MemberView';
 import { AdminView } from './components/AdminView';
 import { AuthView } from './components/AuthView';
@@ -87,6 +88,9 @@ const App: React.FC = () => {
       <div className="relative">
         <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
         <div className="text-white font-bold uppercase tracking-widest text-sm animate-pulse">Loading...</div>
+      </div>
+      <div className="absolute bottom-4 left-0 right-0">
+        <Footer light />
       </div>
     </div>
   );

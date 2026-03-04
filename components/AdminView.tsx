@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Footer } from './Footer';
 import { QrCode, LogOut, Check, AlertCircle, User as UserIcon, X, Download, Wifi, RefreshCw, Users, WifiOff, Cloud, Plus, Minus, Palette, Sparkles, TrendingUp, Phone, Globe, Edit3, Award } from 'lucide-react';
 import { Scanner } from './Scanner';
 import { BrandSettings } from './BrandSettings';
@@ -370,6 +371,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
                         </div>
                     </div>
                 </div>
+
+                <Footer light />
             </main>
 
             {/* Confirmation Modal */}
