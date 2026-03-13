@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Footer } from './Footer';
-import { Coffee, ArrowRight, Mail, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles, Tag } from 'lucide-react';
+import { Coffee, ArrowRight, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles, Tag } from 'lucide-react';
 import { loginUser, registerUser } from '../services/storage';
 import { User } from '../types';
 import { getBrandConfig } from '../services/branding';
@@ -45,8 +45,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
   // Registration fields
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState('Kelapa Gading');
   const [adminReferral, setAdminReferral] = useState('');
 
   // Handle phone number input - only allow digits, no leading 0
@@ -88,7 +87,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
     try {
       if (isRegistering) {
-        if (!name || !email || !phone || !address || !birthDate) {
+        if (!name || !phone || !address || !birthDate) {
           setError('Please fill in all required fields.');
           setIsLoading(false);
           return;
@@ -111,7 +110,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
         const newUser = await registerUser({
           name,
-          email,
+          email: '',
           phone: fullPhone,
           address,
           birthDate: formattedBirthDate,
@@ -260,15 +259,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 icon={UserIcon}
                 required
               />
-              <InputField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="hello@example.com"
-                icon={Mail}
-                required
-              />
+
 
               {/* Phone Number with Country Code Input */}
               <div className="space-y-1.5">
@@ -312,15 +303,27 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 </p>
               </div>
 
-              <InputField
-                label="Domicile"
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Kelapa Gading"
-                icon={MapPin}
-                required
-              />
+              {/* Domicile Dropdown */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-bold text-gray-900 tracking-tight">Domicile <span className="text-red-500">*</span></label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-500 transition-colors">
+                    <MapPin size={18} />
+                  </div>
+                  <select
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    required
+                    className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-white text-gray-900 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all font-medium hover:border-gray-300 appearance-none cursor-pointer"
+                  >
+                    <option value="Kelapa Gading">Kelapa Gading</option>
+                    <option value="Luar Kelapa Gading">Luar Kelapa Gading</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </div>
+              </div>
 
               {/* Birth Date Input */}
               <div className="space-y-1.5">
@@ -350,7 +353,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
               {/* Game Master Referral Input (Optional) */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-bold text-gray-900 tracking-tight">
-                  Game Master Referral
+                  Staff Referral
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-500 transition-colors">
@@ -360,13 +363,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                     type="text"
                     value={adminReferral}
                     onChange={(e) => setAdminReferral(e.target.value)}
-                    placeholder="Enter game master's name (Optional)"
+                    placeholder="Enter staff name (Optional)"
                     className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all font-medium hover:border-gray-300"
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
                   <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                  Ask your game master for this (leave blank if none)
+                  Ask your staff for this (leave blank if none)
                 </p>
               </div>
             </div>
@@ -398,8 +401,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
               setCountryCode('62');
               setBirthDate('');
               setName('');
-              setEmail('');
-              setAddress('');
+              setAddress('Kelapa Gading');
               setAdminReferral('');
             }}
             className="text-sm font-black text-brand-600 hover:text-brand-700 flex items-center justify-center gap-2 mx-auto py-2 px-6 rounded-xl hover:bg-brand-50 transition-all uppercase tracking-wider group"
