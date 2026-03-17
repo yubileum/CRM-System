@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Voucher } from '../types';
-import QRCode from 'react-qr-code';
 import { X, ChevronRight, Clock, CheckCircle, Gift } from 'lucide-react';
 import { getBrandConfig } from '../services/branding';
 import { getTimeUntilExpiry, isVoucherExpired } from '../services/voucherService';
@@ -157,20 +156,6 @@ export const VoucherRedemptionPopup: React.FC<VoucherRedemptionPopupProps> = ({
                         </div>
                     </div>
 
-                    {/* QR Code */}
-                    <div className="bg-white p-6 rounded-2xl border-4 border-gray-200 shadow-inner">
-                        <div className="bg-white p-4 rounded-xl">
-                            <QRCode
-                                value={voucher.id}
-                                size={200}
-                                className="mx-auto"
-                                level="H"
-                            />
-                        </div>
-                        <p className="text-center text-xs text-gray-500 mt-3 font-mono">
-                            {voucher.id}
-                        </p>
-                    </div>
 
                     {/* Voucher Details */}
                     <div className="bg-gray-50 rounded-2xl p-4 space-y-2 text-sm">
