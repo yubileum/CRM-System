@@ -336,6 +336,28 @@ function handleRequest(e) {
       }
     }
 
+    // Reset stamps to 0 (after reward redemption)
+    else if (action === 'resetStamps') {
+      const userId = requestData.userId;
+      const allUsers = usersSheet.getDataRange().getValues();
+      const userIndex = allUsers.slice(1).findIndex(r => String(r[0]) === String(userId));
+
+      if (userIndex === -1) {
+        result = { success: false, error: "User not found." };
+      } else {
+        const realRow = userIndex + 2;
+        usersSheet.getRange(realRow, 8).setValue(0); // reset currentStamps (col 8, 1-indexed)
+        const now = new Date();
+        txSheet.appendRow(['tx-' + now.getTime(), userId, 'reset', 0, now.getTime(), now.toISOString()]);
+        SpreadsheetApp.flush();
+
+        const updatedRow = [...allUsers[userIndex + 1]];
+        updatedRow[7] = 0; // stamps index in row
+        const history = getTransactionsForUser(txSheet, userId);
+        result = { success: true, user: mapRowToUser(updatedRow, history) };
+      }
+    }
+
     else {
       result = { success: false, error: "Unknown action" };
     }

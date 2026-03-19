@@ -6,15 +6,17 @@ import { getStampConfig, fetchStampConfig, isCheckpoint, getCheckpointReward } f
 
 interface StampGridProps {
   user: User;
+  onResetStamps?: () => Promise<void>;
 }
 
-export const StampGrid: React.FC<StampGridProps> = ({ user }) => {
+export const StampGrid: React.FC<StampGridProps> = ({ user, onResetStamps }) => {
   const [stampConfig, setStampConfig] = useState<StampConfig>(getStampConfig());
   const totalSlots = stampConfig.maxStamps;
   const filledSlots = Math.min(user.stamps, totalSlots);
   const prevStampsRef = useRef(filledSlots);
   const [newStampIndex, setNewStampIndex] = useState<number | null>(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<{ stampCount: number; reward: string } | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
   const brandConfig = getBrandConfig();
 
   // No need to fetch on mount - getStampConfig() handles caching and background refresh
@@ -146,14 +148,32 @@ export const StampGrid: React.FC<StampGridProps> = ({ user }) => {
       {/* Status Message */}
       <div className="text-center">
         {filledSlots >= totalSlots ? (
-          <div className="p-5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-2xl border-2 border-green-400 flex items-center justify-center gap-3 shadow-xl shadow-green-500/30 animate-pulse">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <Gift size={28} className="animate-bounce" />
+          <div className="flex flex-col gap-3">
+            <div className="p-5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-2xl border-2 border-green-400 flex items-center justify-center gap-3 shadow-xl shadow-green-500/30 animate-pulse">
+              <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                <Gift size={28} className="animate-bounce" />
+              </div>
+              <div className="text-left">
+                <p className="font-black text-xl">Reward Ready!</p>
+                <p className="text-sm font-medium text-white/90">Show this card to redeem your free item</p>
+              </div>
             </div>
-            <div className="text-left">
-              <p className="font-black text-xl">Reward Ready!</p>
-              <p className="text-sm font-medium text-white/90">Show this card to redeem your free item</p>
-            </div>
+            {onResetStamps && (
+              <button
+                onClick={async () => {
+                  setIsResetting(true);
+                  try { await onResetStamps(); } finally { setIsResetting(false); }
+                }}
+                disabled={isResetting}
+                className="w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 border-2 border-green-300 text-green-700 bg-green-50 hover:bg-green-100 active:scale-[0.98] transition-all disabled:opacity-60"
+              >
+                {isResetting ? (
+                  <><Coffee size={18} className="animate-spin" /> Resetting...</>
+                ) : (
+                  <><Zap size={18} /> Reset &amp; Start Again</>
+                )}
+              </button>
+            )}
           </div>
         ) : (
           <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200">

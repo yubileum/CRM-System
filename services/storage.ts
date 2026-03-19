@@ -272,6 +272,15 @@ export const getUserHistory = async (userId: string): Promise<StampEvent[]> => {
 
 // --- STAMP OPERATIONS ---
 
+export const resetStampsForUser = async (userId: string): Promise<User | null> => {
+  const res = await callApi('resetStamps', {}, { userId });
+  if (res?.success) {
+    SYNC_CHANNEL.postMessage({ type: 'DB_UPDATE' });
+    return res.user;
+  }
+  return null;
+};
+
 export const applyStampToUser = async (userId: string, count: number = 1): Promise<User | null> => {
   let lastUser: User | null = null;
 

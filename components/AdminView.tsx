@@ -4,7 +4,7 @@ import { QrCode, LogOut, Check, AlertCircle, User as UserIcon, X, Download, Wifi
 import { Scanner } from './Scanner';
 import { BrandSettings } from './BrandSettings';
 import { StampConfigModal } from './StampConfigModal';
-import { logAdminTransaction, generateTransactionCSV, generateMembersCSV, applyStampToUser, fetchUserById, fetchUserByPhone } from '../services/storage';
+import { logAdminTransaction, generateTransactionCSV, generateMembersCSV, applyStampToUser, resetStampsForUser, fetchUserById, fetchUserByPhone } from '../services/storage';
 import { sendStampSignal, sendScanSignal, fetchRemoteUser } from '../services/connection';
 import { User } from '../types';
 import { getBrandConfig } from '../services/branding';
@@ -153,6 +153,38 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
                 setMessage('');
             }, 4000);
         }
+    };
+
+    const confirmResetStamps = async () => {
+        if (!pendingUser) return;
+        if (status === 'syncing') return;
+
+        setStatus('syncing');
+        setMessage('Resetting stamp card...');
+
+        try {
+            const updatedUser = await resetStampsForUser(pendingUser.id);
+
+            if (updatedUser) {
+                logAdminTransaction(pendingUser.id, pendingUser.name, 'redeem', pendingUser.stamps);
+
+                setStatus('success');
+                setMessage(`Stamp card reset for ${pendingUser.name}. Card is now at 0/${pendingUser.maxStamps}.`);
+                setPendingUser(null);
+            } else {
+                setStatus('error');
+                setMessage('Reset failed. Check database permissions.');
+            }
+        } catch (err) {
+            console.error(err);
+            setStatus('error');
+            setMessage('Connection failed. Please retry.');
+        }
+
+        setTimeout(() => {
+            setStatus('idle');
+            setMessage('');
+        }, 4000);
     };
 
     const handleIncrement = () => {
@@ -422,45 +454,76 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
                                 </div>
                             </div>
 
-                            {/* Stamp Counter */}
-                            <div className="flex items-center gap-4 w-full">
-                                <button
-                                    onClick={handleDecrement}
-                                    disabled={stampCount <= 1 || status === 'syncing'}
-                                    className="w-14 h-14 rounded-xl bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                                >
-                                    <Minus size={24} />
-                                </button>
-                                <div className="flex-1 text-center">
-                                    <span className="text-5xl font-black text-white">{stampCount}</span>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Stamps to Add</p>
-                                </div>
-                                <button
-                                    onClick={handleIncrement}
-                                    disabled={stampCount >= (pendingUser.maxStamps - pendingUser.stamps) || status === 'syncing'}
-                                    className="w-14 h-14 rounded-xl bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                                >
-                                    <Plus size={24} />
-                                </button>
-                            </div>
+                            {/* Stamp Full: Reset UI — or normal stamp counter */}
+                            {pendingUser.stamps >= pendingUser.maxStamps ? (
+                                <>
+                                    {/* Full card notice */}
+                                    <div className="w-full bg-green-900/30 border border-green-500/40 rounded-2xl p-4 text-center">
+                                        <p className="text-green-400 font-black text-lg">🎉 Stamp Card Full!</p>
+                                        <p className="text-green-300/80 text-sm mt-1 font-medium">Reset to 0 after redeeming the reward.</p>
+                                    </div>
 
-                            {/* Action Buttons */}
-                            <div className="flex gap-3 w-full mt-2">
-                                <button
-                                    onClick={() => setPendingUser(null)}
-                                    disabled={status === 'syncing'}
-                                    className="flex-1 py-4 px-4 rounded-xl font-bold text-gray-400 bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50 border border-gray-600"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={confirmAddStamp}
-                                    disabled={status === 'syncing'}
-                                    className="flex-1 py-4 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 shadow-lg shadow-brand-500/30 transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
-                                >
-                                    {status === 'syncing' ? <RefreshCw className="animate-spin" size={20} /> : <><Check size={20} /> Confirm</>}
-                                </button>
-                            </div>
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-3 w-full mt-2">
+                                        <button
+                                            onClick={() => setPendingUser(null)}
+                                            disabled={status === 'syncing'}
+                                            className="flex-1 py-4 px-4 rounded-xl font-bold text-gray-400 bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50 border border-gray-600"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={confirmResetStamps}
+                                            disabled={status === 'syncing'}
+                                            className="flex-1 py-4 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 shadow-lg shadow-green-500/30 transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+                                        >
+                                            {status === 'syncing' ? <RefreshCw className="animate-spin" size={20} /> : <><RefreshCw size={20} /> Reset Stamps</>}
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Stamp Counter */}
+                                    <div className="flex items-center gap-4 w-full">
+                                        <button
+                                            onClick={handleDecrement}
+                                            disabled={stampCount <= 1 || status === 'syncing'}
+                                            className="w-14 h-14 rounded-xl bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            <Minus size={24} />
+                                        </button>
+                                        <div className="flex-1 text-center">
+                                            <span className="text-5xl font-black text-white">{stampCount}</span>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Stamps to Add</p>
+                                        </div>
+                                        <button
+                                            onClick={handleIncrement}
+                                            disabled={stampCount >= (pendingUser.maxStamps - pendingUser.stamps) || status === 'syncing'}
+                                            className="w-14 h-14 rounded-xl bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            <Plus size={24} />
+                                        </button>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-3 w-full mt-2">
+                                        <button
+                                            onClick={() => setPendingUser(null)}
+                                            disabled={status === 'syncing'}
+                                            className="flex-1 py-4 px-4 rounded-xl font-bold text-gray-400 bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50 border border-gray-600"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={confirmAddStamp}
+                                            disabled={status === 'syncing'}
+                                            className="flex-1 py-4 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 shadow-lg shadow-brand-500/30 transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+                                        >
+                                            {status === 'syncing' ? <RefreshCw className="animate-spin" size={20} /> : <><Check size={20} /> Confirm</>}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

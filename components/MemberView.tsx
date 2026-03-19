@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Footer } from './Footer';
 import QRCode from 'react-qr-code';
 import { User, StampConfig, StampEvent, Voucher } from '../types';
-import { getSessionUser, subscribeToGlobalUpdates, getUserHistory } from '../services/storage';
+import { getSessionUser, subscribeToGlobalUpdates, getUserHistory, resetStampsForUser } from '../services/storage';
 import { initializeHost } from '../services/connection';
 import { StampGrid } from './StampGrid';
 import { CheckpointRewardPopup } from './CheckpointRewardPopup';
@@ -189,6 +189,12 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
   };
 
   // Voucher handlers
+  const handleResetStamps = async () => {
+    await resetStampsForUser(user.id);
+    const updated = await getSessionUser(true);
+    if (updated) setUser(updated);
+  };
+
   const handleVoucherEarned = (voucher: Voucher) => {
     setNewVoucher(voucher);
     // Refresh voucher count
@@ -388,7 +394,7 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
         )}
 
         {/* Stamps Grid */}
-        <StampGrid user={user} />
+        <StampGrid user={user} onResetStamps={handleResetStamps} />
 
         {/* Activity History Button (Static Card Style) */}
         <div className="mt-2 text-center">
