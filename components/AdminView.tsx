@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Footer } from './Footer';
-import { QrCode, LogOut, Check, AlertCircle, User as UserIcon, X, Download, Wifi, RefreshCw, Users, WifiOff, Cloud, Plus, Minus, Palette, Sparkles, TrendingUp, Phone, Globe, Edit3, Award } from 'lucide-react';
+import { QrCode, LogOut, Check, AlertCircle, User as UserIcon, X, Download, Wifi, RefreshCw, Users, WifiOff, Cloud, Plus, Minus, Palette, Sparkles, TrendingUp, Phone, Globe, Edit3, Award, BarChart2 } from 'lucide-react';
 import { Scanner } from './Scanner';
 import { BrandSettings } from './BrandSettings';
 import { StampConfigModal } from './StampConfigModal';
+import { DashboardView } from './DashboardView';
 import { logAdminTransaction, generateTransactionCSV, generateMembersCSV, applyStampToUser, resetStampsForUser, fetchUserById, fetchUserByPhone } from '../services/storage';
 import { sendStampSignal, sendScanSignal, fetchRemoteUser } from '../services/connection';
 import { User } from '../types';
@@ -18,6 +19,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
     const [showBrandSettings, setShowBrandSettings] = useState(false);
     const [showManualInput, setShowManualInput] = useState(false);
     const [showStampConfig, setShowStampConfig] = useState(false);
+    const [showDashboard, setShowDashboard] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'syncing'>('idle');
     const [message, setMessage] = useState('');
 
@@ -299,6 +301,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowDashboard(true)}
+                            className="p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                            title="Analytics Dashboard"
+                        >
+                            <BarChart2 size={18} />
+                        </button>
                         <button
                             onClick={() => setShowStampConfig(true)}
                             className="p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all"
@@ -629,6 +638,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
             {isScanning && <Scanner onScan={handleScan} onClose={() => setIsScanning(false)} />}
             {showBrandSettings && <BrandSettings onClose={() => setShowBrandSettings(false)} />}
             {showStampConfig && <StampConfigModal onClose={() => setShowStampConfig(false)} />}
+            {showDashboard && <DashboardView onClose={() => setShowDashboard(false)} />}
         </div>
     );
 };

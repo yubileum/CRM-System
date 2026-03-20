@@ -338,6 +338,12 @@ export const getAllUsersList = async (): Promise<User[]> => {
   return res?.users || [];
 };
 
+export const fetchDashboardData = async (): Promise<any> => {
+  const res = await callApi('getDashboardData');
+  return res?.success ? res.data : null;
+};
+
+
 export const logAdminTransaction = (userId: string, userName: string, type: 'add' | 'redeem', amount: number = 1) => {
   const logs = JSON.parse(localStorage.getItem(ADMIN_LOGS_KEY) || '[]');
   logs.push({

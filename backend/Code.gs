@@ -336,6 +336,224 @@ function handleRequest(e) {
       }
     }
 
+    // Dashboard analytics
+    else if (action === 'getDashboardData') {
+      const allUsers = usersSheet.getDataRange().getValues().slice(1);
+      const allTx = txSheet.getDataRange().getValues().slice(1);
+
+      const now = new Date();
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const msPerWeek = 7 * msPerDay;
+      const oneMonthAgo = new Date(now.getTime() - 30 * msPerDay);
+
+      // --- Total members ---
+      const totalMembers = allUsers.length;
+
+      // --- New members per week (last 8 weeks) ---
+      const weeklyGrowth = [];
+      for (let i = 7; i >= 0; i--) {
+        const weekEnd = new Date(now.getTime() - i * msPerWeek);
+        const weekStart = new Date(weekEnd.getTime() - msPerWeek);
+        const count = allUsers.filter(function(row) {
+          const createdAt = new Date(row[9]);
+          return createdAt >= weekStart && createdAt < weekEnd;
+        }).length;
+
+        // Label: "Mar 10"
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const label = months[weekStart.getMonth()] + ' ' + weekStart.getDate();
+        weeklyGrowth.push({ label: label, count: count });
+      }
+
+      // --- Last stamp activity per user ---
+      const lastStampPerUser = {};
+      allTx.filter(function(r) { return r[2] === 'add'; }).forEach(function(r) {
+        const userId = String(r[1]);
+        const ts = Number(r[4]);
+        if (!lastStampPerUser[userId] || ts > lastStampPerUser[userId]) {
+          lastStampPerUser[userId] = ts;
+        }
+      });
+
+      // --- At-risk customers: no stamp activity in last 30 days ---
+      const atRiskUsers = allUsers
+        .filter(function(row) {
+          const userId = String(row[0]);
+          const lastStamp = lastStampPerUser[userId];
+          if (!lastStamp) return true; // never received a stamp
+          return new Date(lastStamp) < oneMonthAgo;
+        })
+        .map(function(row) {
+          const userId = String(row[0]);
+          const lastTs = lastStampPerUser[userId] || null;
+          return {
+            id: userId,
+            name: row[1],
+            phone: row[3],
+            stamps: parseInt(row[7] || 0),
+            lastStampAt: lastTs ? new Date(lastTs).toISOString() : null,
+            daysSinceLastStamp: lastTs ? Math.floor((now.getTime() - lastTs) / msPerDay) : null
+          };
+        })
+        .sort(function(a, b) {
+          // Sort: never-stamped first, then longest inactive
+          if (!a.lastStampAt && !b.lastStampAt) return 0;
+          if (!a.lastStampAt) return -1;
+          if (!b.lastStampAt) return 1;
+          return (b.daysSinceLastStamp || 0) - (a.daysSinceLastStamp || 0);
+        });
+
+      // --- Daily member registrations for last 56 days (8 weeks x 7 days) ---
+      const dailyGrowth = [];
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      for (let i = 55; i >= 0; i--) {
+        const dayEnd = new Date(now.getTime() - i * msPerDay);
+        const dayStart = new Date(dayEnd.getTime() - msPerDay);
+        const count = allUsers.filter(function(row) {
+          const createdAt = new Date(row[9]);
+          return createdAt >= dayStart && createdAt < dayEnd;
+        }).length;
+        dailyGrowth.push({
+          date: months[dayStart.getMonth()] + ' ' + dayStart.getDate(),
+          count: count
+        });
+      }
+
+      // --- Cumulative member count per week ---
+      const cumulativeGrowth = [];
+      for (let i = 7; i >= 0; i--) {
+        const weekEnd = new Date(now.getTime() - i * msPerWeek);
+        const count = allUsers.filter(function(row) {
+          return new Date(row[9]) < weekEnd;
+        }).length;
+        cumulativeGrowth.push({ label: weeklyGrowth[7 - i].label, count: count });
+      }
+
+      // --- Referral Performance ---
+      // row[5] = referralCode (admin code used when registering)
+      const referralCount = {};
+      allUsers.forEach(function(row) {
+        const code = String(row[5] || '').trim();
+        if (code) {
+          referralCount[code] = (referralCount[code] || 0) + 1;
+        }
+      });
+      const referralLeaderboard = Object.keys(referralCount)
+        .map(function(code) { return { code: code, count: referralCount[code] }; })
+        .sort(function(a, b) { return b.count - a.count; })
+        .slice(0, 10);
+
+      const totalReferred = allUsers.filter(function(row) {
+        return String(row[5] || '').trim() !== '';
+      }).length;
+
+      // Monthly referral count — starting from Feb 2026 (app launch)
+      const mnthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const refAppStart = new Date(2026, 1, 1); // Feb 1, 2026
+      const monthlyReferrals = [];
+      const monthlyLeaderboards = {}; // { "Feb 26": [{code, count}, ...], ... }
+
+      var cursor = new Date(refAppStart);
+      while (cursor <= now) {
+        var mStart = new Date(cursor);
+        var mEnd   = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        var mLabel = mnthNames[mStart.getMonth()] + ' ' + String(mStart.getFullYear()).slice(2);
+
+        // Count total referred this month
+        var mCount = allUsers.filter(function(row) {
+          var hasRef = String(row[5] || '').trim() !== '';
+          var created = new Date(row[9]);
+          return hasRef && created >= mStart && created < mEnd;
+        }).length;
+        monthlyReferrals.push({ label: mLabel, count: mCount });
+
+        // Per-referral-code breakdown for this month
+        var codeTally = {};
+        allUsers.forEach(function(row) {
+          var code = String(row[5] || '').trim();
+          if (!code) return;
+          var created = new Date(row[9]);
+          if (created >= mStart && created < mEnd) {
+            codeTally[code] = (codeTally[code] || 0) + 1;
+          }
+        });
+        monthlyLeaderboards[mLabel] = Object.keys(codeTally)
+          .map(function(c) { return { code: c, count: codeTally[c] }; })
+          .sort(function(a, b) { return b.count - a.count; });
+
+        cursor = mEnd; // advance to next month
+      }
+
+      // --- Birthday ---
+      const todayMonth = now.getMonth() + 1; // 1-indexed
+      const todayDay = now.getDate();
+
+      var birthdayToday = [];
+      var birthdayThisMonth = [];
+
+      allUsers.forEach(function(row) {
+        const rawBirth = String(row[6] || '').trim();
+        if (!rawBirth) return;
+
+        // birthDate stored as YYYY-MM-DD or DD/MM/YYYY or similar
+        var bMonth = null, bDay = null;
+        // Try YYYY-MM-DD
+        var isoMatch = rawBirth.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (isoMatch) {
+          bMonth = parseInt(isoMatch[2]);
+          bDay = parseInt(isoMatch[3]);
+        } else {
+          // Try DD/MM/YYYY or DD-MM-YYYY
+          var dmyMatch = rawBirth.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (dmyMatch) {
+            bDay = parseInt(dmyMatch[1]);
+            bMonth = parseInt(dmyMatch[2]);
+          }
+        }
+
+        if (!bMonth || !bDay) return;
+
+        const person = {
+          id: row[0],
+          name: row[1],
+          phone: row[3],
+          birthDate: rawBirth,
+          birthDay: bDay,
+          birthMonth: bMonth
+        };
+
+        if (bMonth === todayMonth && bDay === todayDay) {
+          birthdayToday.push(person);
+        }
+        if (bMonth === todayMonth) {
+          birthdayThisMonth.push(person);
+        }
+      });
+
+      // Sort this-month birthdays by day
+      birthdayThisMonth.sort(function(a, b) { return a.birthDay - b.birthDay; });
+
+      result = {
+        success: true,
+        data: {
+          totalMembers: totalMembers,
+          atRiskCount: atRiskUsers.length,
+          weeklyGrowth: weeklyGrowth,
+          dailyGrowth: dailyGrowth,
+          cumulativeGrowth: cumulativeGrowth,
+          atRiskUsers: atRiskUsers.slice(0, 50),
+          referralLeaderboard: referralLeaderboard,
+          totalReferred: totalReferred,
+          monthlyReferrals: monthlyReferrals,
+          monthlyLeaderboards: monthlyLeaderboards,
+          birthdayToday: birthdayToday,
+          birthdayThisMonth: birthdayThisMonth
+        }
+      };
+    }
+
+
+
     // Reset stamps to 0 (after reward redemption)
     else if (action === 'resetStamps') {
       const userId = requestData.userId;
