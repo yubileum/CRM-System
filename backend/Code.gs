@@ -403,6 +403,20 @@ function handleRequest(e) {
           return (b.daysSinceLastStamp || 0) - (a.daysSinceLastStamp || 0);
         });
 
+      // --- Active members breakdown: new (<1 month join) vs veteran (>1 month join) ---
+      const activeUsers = allUsers.filter(function(row) {
+        const userId = String(row[0]);
+        const lastStamp = lastStampPerUser[userId];
+        if (!lastStamp) return false;
+        return new Date(lastStamp) >= oneMonthAgo;
+      });
+      const newActiveCount = activeUsers.filter(function(row) {
+        return new Date(row[9]) >= oneMonthAgo;
+      }).length;
+      const veteranActiveCount = activeUsers.filter(function(row) {
+        return new Date(row[9]) < oneMonthAgo;
+      }).length;
+
       // --- Daily member registrations for last 56 days (8 weeks x 7 days) ---
       const dailyGrowth = [];
       const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -538,6 +552,8 @@ function handleRequest(e) {
         data: {
           totalMembers: totalMembers,
           atRiskCount: atRiskUsers.length,
+          newActiveCount: newActiveCount,
+          veteranActiveCount: veteranActiveCount,
           weeklyGrowth: weeklyGrowth,
           dailyGrowth: dailyGrowth,
           cumulativeGrowth: cumulativeGrowth,

@@ -33,6 +33,7 @@ interface BirthdayPerson {
 }
 interface DashboardData {
   totalMembers: number; atRiskCount: number;
+  newActiveCount: number; veteranActiveCount: number;
   weeklyGrowth: { label: string; count: number }[];
   cumulativeGrowth: { label: string; count: number }[];
   dailyGrowth: { date: string; count: number }[];
@@ -821,10 +822,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
           {data && !loading && tab === 'retention' && (
             <>
               <div className="grid grid-cols-2 gap-3">
+                {/* Active Members — with breakdown */}
                 <div className={card} style={{ ...cardStyle, borderColor: `${C.green}55` }}>
                   <p className="text-2xl font-black" style={{ color: C.greenLt }}>{data.totalMembers - data.atRiskCount}</p>
                   <p className="text-xs font-bold uppercase tracking-wider mt-1" style={{ color: C.textDim }}>Active Members</p>
                   <p className="text-xs mt-1" style={{ color: C.textDim }}>Visited in last 30 days</p>
+                  {/* Breakdown */}
+                  <div className="mt-3 pt-3 space-y-2" style={{ borderTop: `1px solid ${C.gridLt}` }}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full inline-block" style={{ background: C.greenLt }} />
+                        <span className="text-[11px] font-bold" style={{ color: C.text }}>New (&lt;1 bulan)</span>
+                      </div>
+                      <span className="text-sm font-black" style={{ color: C.greenLt }}>{data.newActiveCount ?? 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#60a5fa' }} />
+                        <span className="text-[11px] font-bold" style={{ color: C.text }}>Loyal (&gt;1 bulan)</span>
+                      </div>
+                      <span className="text-sm font-black" style={{ color: '#60a5fa' }}>{data.veteranActiveCount ?? 0}</span>
+                    </div>
+                  </div>
                 </div>
                 <div className={card} style={{ ...cardStyle, borderColor: 'rgba(245,158,11,0.35)' }}>
                   <p className="text-2xl font-black" style={{ color: C.amber }}>{data.atRiskCount}</p>
