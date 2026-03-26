@@ -349,9 +349,15 @@ const DailyPanel: React.FC<{
           <X size={14} />
         </button>
       </div>
-      <div className="flex items-end gap-3" style={{ height: 120 }}>
+      <div className="flex items-end gap-3" style={{ height: 132 }}>
         {days.map((day, i) => {
           const pct = Math.max((day.count / maxDay) * 100, day.count > 0 ? 4 : 0);
+          // Parse "Mar 19" → short day name using current year
+          const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+          const monthMap: Record<string,number> = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+          const parts = day.date.split(' ');
+          const parsedDate = parts.length === 2 ? new Date(new Date().getFullYear(), monthMap[parts[0]] ?? 0, parseInt(parts[1])) : null;
+          const dayLabel = parsedDate ? dayNames[parsedDate.getDay()] : '';
           return (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
               <span className="text-[10px] font-black" style={{ color: C.text, minHeight: 14 }}>
@@ -366,8 +372,11 @@ const DailyPanel: React.FC<{
                     background: `linear-gradient(to top, ${C.greenDim}, ${C.greenMid})`
                   }} />
               </div>
-              <span className="text-[9px] font-bold text-center leading-tight"
-                style={{ color: C.textDim }}>{day.date}</span>
+              <span className="text-[9px] font-bold text-center leading-none"
+                style={{ color: C.textDim }}>
+                {dayLabel && <span className="block" style={{ color: C.text }}>{dayLabel}</span>}
+                {day.date}
+              </span>
             </div>
           );
         })}
@@ -821,36 +830,93 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
           {/* ── RETENTION TAB ── */}
           {data && !loading && tab === 'retention' && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                {/* Active Members — with breakdown */}
-                <div className={card} style={{ ...cardStyle, borderColor: `${C.green}55` }}>
-                  <p className="text-2xl font-black" style={{ color: C.greenLt }}>{data.totalMembers - data.atRiskCount}</p>
-                  <p className="text-xs font-bold uppercase tracking-wider mt-1" style={{ color: C.textDim }}>Active Members</p>
-                  <p className="text-xs mt-1" style={{ color: C.textDim }}>Visited in last 30 days</p>
-                  {/* Breakdown */}
-                  <div className="mt-3 pt-3 space-y-2" style={{ borderTop: `1px solid ${C.gridLt}` }}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full inline-block" style={{ background: C.greenLt }} />
-                        <span className="text-[11px] font-bold" style={{ color: C.text }}>New (&lt;1 bulan)</span>
+              {/* KPI row — 2 balanced cards */}
+              {(() => {
+                const activeTotal = data.totalMembers - data.atRiskCount;
+                const newCount = data.newActiveCount ?? 0;
+                const loyalCount = data.veteranActiveCount ?? 0;
+                const newPct = activeTotal > 0 ? Math.round((newCount / activeTotal) * 100) : 0;
+                const loyalPct = activeTotal > 0 ? 100 - newPct : 0;
+                return (
+                  <div className="grid grid-cols-2 gap-3">
+
+                    {/* ── Active Members card with breakdown ── */}
+                    <div className={card} style={{ ...cardStyle, borderColor: `${C.green}55` }}>
+                      {/* Header row */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <p className="text-3xl font-black leading-none" style={{ color: C.greenLt }}>{activeTotal}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wider mt-1.5" style={{ color: C.textDim }}>Active Members</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Visited in last 30 days</p>
+                        </div>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                          style={{ background: `${C.green}55` }}>
+                          <Users size={15} style={{ color: C.greenLt }} />
+                        </div>
                       </div>
-                      <span className="text-sm font-black" style={{ color: C.greenLt }}>{data.newActiveCount ?? 0}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#60a5fa' }} />
-                        <span className="text-[11px] font-bold" style={{ color: C.text }}>Loyal (&gt;1 bulan)</span>
+
+                      {/* Stacked proportion bar */}
+                      <div className="h-2 rounded-full overflow-hidden flex gap-px" style={{ background: C.grid }}>
+                        <div className="h-full transition-all duration-700 rounded-l-full"
+                          style={{ width: `${newPct}%`, background: `linear-gradient(90deg, ${C.green}, ${C.greenLt})` }} />
+                        <div className="h-full transition-all duration-700 rounded-r-full"
+                          style={{ width: `${loyalPct}%`, background: 'linear-gradient(90deg, #3b82f6, #60a5fa)' }} />
                       </div>
-                      <span className="text-sm font-black" style={{ color: '#60a5fa' }}>{data.veteranActiveCount ?? 0}</span>
+
+                      {/* Sub-stats */}
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        {/* New */}
+                        <div className="rounded-xl px-3 py-2.5" style={{ background: `${C.greenLt}12`, border: `1px solid ${C.greenLt}25` }}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: C.greenLt }} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.textDim }}>New</span>
+                          </div>
+                          <p className="text-xl font-black leading-none" style={{ color: C.greenLt }}>{newCount}</p>
+                          <p className="text-[10px] mt-1" style={{ color: C.textDim }}>&lt; 1 month old</p>
+                          <p className="text-[10px] font-black mt-0.5" style={{ color: C.greenLt }}>{newPct}%</p>
+                        </div>
+                        {/* Loyal */}
+                        <div className="rounded-xl px-3 py-2.5" style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)' }}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#60a5fa' }} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.textDim }}>Loyal</span>
+                          </div>
+                          <p className="text-xl font-black leading-none" style={{ color: '#60a5fa' }}>{loyalCount}</p>
+                          <p className="text-[10px] mt-1" style={{ color: C.textDim }}>&gt; 1 month old</p>
+                          <p className="text-[10px] font-black mt-0.5" style={{ color: '#60a5fa' }}>{loyalPct}%</p>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* ── At-Risk card ── */}
+                    <div className={card} style={{ ...cardStyle, borderColor: 'rgba(245,158,11,0.35)' }}>
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <p className="text-3xl font-black leading-none" style={{ color: C.amber }}>{data.atRiskCount}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wider mt-1.5" style={{ color: C.textDim }}>At-Risk</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>No visit in 30+ days</p>
+                        </div>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                          style={{ background: 'rgba(245,158,11,0.15)' }}>
+                          <UserX size={15} style={{ color: C.amber }} />
+                        </div>
+                      </div>
+                      {/* Risk proportion bar */}
+                      <div className="h-2 rounded-full overflow-hidden" style={{ background: C.grid }}>
+                        <div className="h-full rounded-full transition-all duration-700"
+                          style={{
+                            width: `${data.totalMembers > 0 ? Math.round((data.atRiskCount / data.totalMembers) * 100) : 0}%`,
+                            background: 'linear-gradient(90deg, #d97706, #f59e0b)'
+                          }} />
+                      </div>
+                      <p className="text-[10px] font-bold mt-1.5" style={{ color: C.textDim }}>
+                        {data.totalMembers > 0 ? Math.round((data.atRiskCount / data.totalMembers) * 100) : 0}% of total members
+                      </p>
+                    </div>
+
                   </div>
-                </div>
-                <div className={card} style={{ ...cardStyle, borderColor: 'rgba(245,158,11,0.35)' }}>
-                  <p className="text-2xl font-black" style={{ color: C.amber }}>{data.atRiskCount}</p>
-                  <p className="text-xs font-bold uppercase tracking-wider mt-1" style={{ color: C.textDim }}>At-Risk</p>
-                  <p className="text-xs mt-1" style={{ color: C.textDim }}>No visit in 30+ days</p>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Retention rate */}
               <div className={card} style={cardStyle}>
