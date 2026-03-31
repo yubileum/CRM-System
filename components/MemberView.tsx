@@ -366,10 +366,35 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
             {/* QR Code Toggle Button */}
             <button
               onClick={() => setShowQR(!showQR)}
-              className="w-full mt-4 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-black py-4 rounded-xl border-2 border-white/30 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+              className="w-full mt-4 relative overflow-hidden bg-white hover:bg-gray-50 text-brand-600 font-black py-4 px-5 rounded-2xl border-0 transition-all flex items-center justify-between gap-3 shadow-2xl shadow-black/20 hover:shadow-black/30 active:scale-[0.98] group"
             >
-              <Scan size={20} />
-              {showQR ? 'Hide QR Code' : 'Show QR Code to Scan'}
+              {/* Shimmer sweep */}
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-brand-50/60 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
+
+              <div className="flex items-center gap-3 relative">
+                {/* Pulsing icon ring */}
+                <div className="relative shrink-0">
+                  <div className="absolute inset-0 rounded-full bg-brand-500/20 animate-ping" />
+                  <div className="relative w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/40">
+                    <Scan size={20} className="text-white" />
+                  </div>
+                </div>
+                <div className="text-left">
+                  <p className="text-xl font-black text-brand-700 leading-tight uppercase tracking-wide">
+                    {showQR ? 'Hide QR Code' : 'Show QR Code to Scan'}
+                  </p>
+                  {!showQR && (
+                    <p className="text-sm font-bold text-brand-400 leading-tight uppercase tracking-wider mt-0.5">Tap to get stamped by cashier</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Arrow chevron */}
+              <div className="relative shrink-0 w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center border border-brand-100">
+                <svg className={`w-4 h-4 text-brand-500 transition-transform duration-300 ${showQR ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </button>
           </div>
         </div>
@@ -378,8 +403,8 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
         {showQR && (
           <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-200 animate-in zoom-in-95 fade-in">
             <div className="text-center mb-6">
-              <h3 className="text-2xl font-black text-gray-900 mb-2">Scan to Collect Stamps</h3>
-              <p className="text-gray-600 font-medium">Show this QR code to the cashier</p>
+              <h3 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-wide">Scan to Collect Stamps</h3>
+              <p className="text-gray-600 font-medium uppercase tracking-wider text-sm">Show this QR code to the cashier</p>
             </div>
             <div className="flex justify-center p-6 bg-gray-50 rounded-2xl border-2 border-gray-200">
               <QRCode value={qrData} size={240} level="L" fgColor="#000000" bgColor="#FFFFFF" />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Footer } from './Footer';
-import { Coffee, ArrowRight, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles, Tag } from 'lucide-react';
+import { Coffee, ArrowRight, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles, Tag, Star, CheckCircle2 } from 'lucide-react';
 import { loginUser, registerUser } from '../services/storage';
 import { User } from '../types';
 import { getBrandConfig } from '../services/branding';
@@ -32,8 +32,93 @@ const InputField = ({
   </div>
 );
 
+// ── First-Stamp Welcome Popup ──────────────────────────────────────────────
+const FirstStampPopup: React.FC<{ user: User; onClose: () => void }> = ({ user, onClose }) => {
+  const brandConfig = getBrandConfig();
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-500">
+      {/* Blurred backdrop */}
+      <div className="absolute inset-0 bg-gradient-to-br from-brand-700/90 via-brand-600/90 to-brand-800/90 backdrop-blur-sm" />
+
+      {/* Floating decorative blobs */}
+      <div className="absolute top-10 left-10 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-pulse" />
+      <div className="absolute bottom-10 right-10 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse delay-700" />
+
+      {/* Card */}
+      <div className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-90 slide-in-from-bottom-6 duration-700">
+        {/* Top ribbon */}
+        <div className="relative bg-gradient-to-br from-brand-600 via-brand-500 to-brand-700 p-8 text-center overflow-hidden">
+          <div className="absolute -top-6 -right-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+          <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+
+          {/* Sparkle ring */}
+          <div className="relative flex items-center justify-center mb-4">
+            <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur flex items-center justify-center ring-4 ring-white/30 shadow-2xl">
+              <Star size={44} className="text-yellow-300 fill-yellow-300 drop-shadow-lg" />
+            </div>
+            {/* Orbiting dots */}
+            <div className="absolute w-2.5 h-2.5 bg-yellow-300 rounded-full top-0 left-1/2 -translate-x-1/2 -translate-y-1 animate-bounce" />
+            <div className="absolute w-2 h-2 bg-white/70 rounded-full top-3 right-4 animate-bounce delay-300" />
+            <div className="absolute w-2 h-2 bg-white/70 rounded-full top-3 left-4 animate-bounce delay-500" />
+          </div>
+
+          <h2 className="text-2xl font-black text-white tracking-tight drop-shadow">Welcome aboard! 🎉</h2>
+          <p className="mt-1 text-white/85 font-semibold text-sm">
+            Hi <span className="font-black">{user.name.split(' ')[0]}</span>, you're now a {brandConfig.name} member!
+          </p>
+        </div>
+
+        {/* Body */}
+        <div className="p-7 space-y-5">
+          {/* Instruction card */}
+          <div className="rounded-2xl border-2 border-brand-100 bg-brand-50 p-5 flex gap-4 items-start">
+            <div className="shrink-0 w-11 h-11 rounded-xl bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/30">
+              <Coffee size={22} className="text-white" />
+            </div>
+            <div>
+              <p className="font-black text-gray-900 text-sm leading-snug">Get your first stamp now!</p>
+              <p className="text-gray-500 text-xs mt-1 leading-relaxed">
+                Show this screen to the cashier and ask them to stamp your new loyalty card.
+              </p>
+            </div>
+          </div>
+
+          {/* Step badges */}
+          <div className="space-y-2.5">
+            {[
+              { step: '1', text: 'Show this screen to the cashier' },
+              { step: '2', text: 'Ask them to scan / add your first stamp' },
+              { step: '3', text: 'Enjoy collecting more stamps!' },
+            ].map(({ step, text }) => (
+              <div key={step} className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-brand-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                  {step}
+                </div>
+                <p className="text-gray-700 font-semibold text-sm">{text}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <button
+            id="first-stamp-popup-close"
+            onClick={onClose}
+            className="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white font-black text-base py-4 rounded-xl shadow-xl shadow-brand-500/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] group relative overflow-hidden mt-2"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+            <CheckCircle2 size={20} className="relative" />
+            <span className="relative">Got it! Take me to my card</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+// ───────────────────────────────────────────────────────────────────────────
+
 export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [isRegistering, setIsRegistering] = useState(false);
+  const [pendingNewUser, setPendingNewUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const brandConfig = getBrandConfig();
@@ -116,7 +201,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
           birthDate: formattedBirthDate,
           adminReferral
         });
-        onLogin(newUser, false);
+        // Show first-stamp popup instead of going straight to member view
+        setPendingNewUser(newUser);
       } else {
         const fullPhone = countryCode + phone;
 
@@ -138,6 +224,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       setIsLoading(false);
     }
   };
+
+  // When the new-user popup is dismissed, proceed to member view
+  if (pendingNewUser) {
+    return (
+      <FirstStampPopup
+        user={pendingNewUser}
+        onClose={() => {
+          onLogin(pendingNewUser, false);
+          setPendingNewUser(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-700 ring-1 ring-black/5 my-8 backdrop-blur-xl">
