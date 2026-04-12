@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Award, Hash } from 'lucide-react';
-import { StampConfig, StampCheckpoint } from '../types';
+import { X, Plus, Trash2, Save, Award, Hash, Users, UserPlus, Tag } from 'lucide-react';
+import { StampConfig, StampCheckpoint, AdminEntry } from '../types';
 import { getStampConfig, saveStampConfig } from '../services/stampConfig';
+import { fetchAdminList, saveAdminList } from '../services/adminConfig';
 
 interface StampConfigModalProps {
     onClose: () => void;
@@ -14,6 +15,19 @@ export const StampConfigModal: React.FC<StampConfigModalProps> = ({ onClose }) =
     const [newCheckpointStamp, setNewCheckpointStamp] = useState('');
     const [newCheckpointReward, setNewCheckpointReward] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+
+    // Admin List state
+    const [admins, setAdmins] = useState<AdminEntry[]>([]);
+    const [isLoadingAdmins, setIsLoadingAdmins] = useState(true);
+    const [newAdminName, setNewAdminName] = useState('');
+    const [newAdminCode, setNewAdminCode] = useState('');
+
+    useEffect(() => {
+        fetchAdminList().then(list => {
+            setAdmins(list);
+            setIsLoadingAdmins(false);
+        });
+    }, []);
 
     const handleAddCheckpoint = () => {
         const stampCount = parseInt(newCheckpointStamp);
@@ -37,6 +51,30 @@ export const StampConfigModal: React.FC<StampConfigModalProps> = ({ onClose }) =
         setCheckpoints(checkpoints.filter(cp => cp.stampCount !== stampCount));
     };
 
+    const handleAddAdmin = () => {
+        const trimmedName = newAdminName.trim();
+        const trimmedCode = newAdminCode.trim();
+        if (!trimmedName || !trimmedCode) return;
+
+        if (admins.some(a => a.code.toLowerCase() === trimmedCode.toLowerCase())) {
+            alert('An admin with this code already exists.');
+            return;
+        }
+
+        const newAdmin: AdminEntry = {
+            id: 'admin-' + Date.now(),
+            name: trimmedName,
+            code: trimmedCode
+        };
+        setAdmins([...admins, newAdmin]);
+        setNewAdminName('');
+        setNewAdminCode('');
+    };
+
+    const handleRemoveAdmin = (id: string) => {
+        setAdmins(admins.filter(a => a.id !== id));
+    };
+
     const handleSave = async () => {
         const maxStampsNum = parseInt(maxStamps);
         if (!maxStampsNum || maxStampsNum <= 0) {
@@ -56,12 +94,17 @@ export const StampConfigModal: React.FC<StampConfigModalProps> = ({ onClose }) =
         };
 
         setIsSaving(true);
-        const success = await saveStampConfig(newConfig);
+        const [stampSuccess, adminSuccess] = await Promise.all([
+            saveStampConfig(newConfig),
+            saveAdminList(admins)
+        ]);
         setIsSaving(false);
 
-        if (success) {
-            alert('Stamp configuration saved successfully to database!');
+        if (stampSuccess && adminSuccess) {
+            alert('Configuration saved successfully to database!');
             onClose();
+        } else if (stampSuccess) {
+            alert('Stamp config saved, but failed to save admin list. Please try again.');
         } else {
             alert('Failed to save configuration. Please try again.');
         }
@@ -168,6 +211,82 @@ export const StampConfigModal: React.FC<StampConfigModalProps> = ({ onClose }) =
                             >
                                 <Plus size={20} />
                                 Add Checkpoint
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Admin List */}
+                    <div className="bg-gray-700/50 rounded-2xl p-6 border border-gray-600">
+                        <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                            <Users size={20} className="text-purple-400" />
+                            Admin List
+                        </h3>
+                        <p className="text-xs text-gray-400 mb-4">These admins will appear as a dropdown option in the member registration form.</p>
+
+                        {isLoadingAdmins ? (
+                            <p className="text-gray-500 text-center py-6 font-medium">Loading admin list...</p>
+                        ) : admins.length > 0 ? (
+                            <div className="space-y-3 mb-4">
+                                {admins.map((admin) => (
+                                    <div key={admin.id} className="flex items-center gap-3 bg-gray-800/50 p-4 rounded-xl border border-gray-600">
+                                        <div className="flex-1">
+                                            <p className="text-white font-bold">{admin.name}</p>
+                                            <p className="text-purple-400 text-sm font-mono">{admin.code}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleRemoveAdmin(admin.id)}
+                                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-gray-500 text-center py-6 font-medium">No admins configured yet</p>
+                        )}
+
+                        {/* Add Admin Form */}
+                        <div className="space-y-3 pt-4 border-t border-gray-600">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-2">Name</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                                            <UserPlus size={14} />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={newAdminName}
+                                            onChange={(e) => setNewAdminName(e.target.value)}
+                                            placeholder="e.g. John"
+                                            className="w-full pl-8 pr-3 py-2.5 rounded-lg border-2 border-gray-600 bg-gray-700/50 text-white placeholder:text-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all font-medium"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-2">Referral Code</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                                            <Tag size={14} />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={newAdminCode}
+                                            onChange={(e) => setNewAdminCode(e.target.value)}
+                                            placeholder="e.g. JOHN01"
+                                            className="w-full pl-8 pr-3 py-2.5 rounded-lg border-2 border-gray-600 bg-gray-700/50 text-white placeholder:text-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleAddAdmin}
+                                disabled={!newAdminName.trim() || !newAdminCode.trim()}
+                                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
+                            >
+                                <UserPlus size={20} />
+                                Add Admin
                             </button>
                         </div>
                     </div>

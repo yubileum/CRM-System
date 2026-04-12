@@ -1,5 +1,5 @@
 /**
- * DICE BACKEND - V14 (Added Admin Referral Code)
+ * DICE BACKEND - V15 (Added Admin List)
  * 1. Run 'setup' function manually first to authorize scopes.
  * 2. Deploy as Web App -> Execute as: "Me", Access: "Anyone".
  * COLUMN ORDER: id | name | email | phone | address | referralCode | birthDate | currentStamps | maxStamps | createdAt
@@ -19,6 +19,10 @@ function setup() {
   // NEW: Initialize Vouchers sheet
   getOrCreateSheet(doc, 'Vouchers', [
       'id', 'userId', 'checkpointStampCount', 'rewardName', 'createdAt', 'expiresAt', 'redeemedAt', 'status'
+  ]);
+  // NEW: Initialize AdminList sheet
+  getOrCreateSheet(doc, 'AdminList', [
+      'id', 'name', 'code'
   ]);
   Logger.log("Setup Complete. You can now Deploy.");
 }
@@ -506,7 +510,10 @@ function handleRequest(e) {
       var birthdayThisMonth = [];
 
       allUsers.forEach(function(row) {
-        const rawBirth = String(row[6] || '').trim();
+        // Use formatDate() to handle cases where Google Sheets stores the value
+        // as a Date object (auto-converted from a date string), which would produce
+        // an unrecognizable format if coerced via String() directly.
+        const rawBirth = formatDate(row[6]).trim();
         if (!rawBirth) return;
 
         // birthDate stored as YYYY-MM-DD or DD/MM/YYYY or similar
@@ -568,7 +575,44 @@ function handleRequest(e) {
       };
     }
 
+    // Get admin list
+    else if (action === 'getAdminList') {
+      const adminSheet = getOrCreateSheet(doc, 'AdminList', ['id', 'name', 'code']);
+      const allRows = adminSheet.getDataRange().getValues().slice(1);
+      const admins = allRows
+        .filter(function(row) { return String(row[0]).trim() !== ''; })
+        .map(function(row) {
+          return {
+            id: String(row[0]),
+            name: String(row[1]),
+            code: String(row[2])
+          };
+        });
+      result = { success: true, admins: admins };
+    }
 
+    // Save admin list
+    else if (action === 'saveAdminList') {
+      const adminSheet = getOrCreateSheet(doc, 'AdminList', ['id', 'name', 'code']);
+      const admins = requestData.admins || [];
+
+      // Clear existing data (except header)
+      if (adminSheet.getLastRow() > 1) {
+        adminSheet.deleteRows(2, adminSheet.getLastRow() - 1);
+      }
+
+      // Append each admin
+      admins.forEach(function(admin) {
+        adminSheet.appendRow([
+          admin.id || 'admin-' + new Date().getTime(),
+          String(admin.name || '').trim(),
+          String(admin.code || '').trim()
+        ]);
+      });
+      SpreadsheetApp.flush();
+
+      result = { success: true, admins: admins };
+    }
 
     // Reset stamps to 0 (after reward redemption)
     else if (action === 'resetStamps') {
@@ -633,6 +677,7 @@ function getOrCreateSheet(doc, name, headers) {
         ])
       ]);
     }
+    // AdminList starts empty — admins are added via the admin panel
   }
   return sheet;
 }

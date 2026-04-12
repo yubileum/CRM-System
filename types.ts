@@ -30,6 +30,12 @@ export interface StampConfig {
   checkpoints: StampCheckpoint[];
 }
 
+export interface AdminEntry {
+  id: string;
+  name: string;
+  code: string;
+}
+
 export interface Voucher {
   id: string;
   userId: string;

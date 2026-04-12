@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Footer } from './Footer';
-import { Coffee, ArrowRight, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles, Tag, Star, CheckCircle2 } from 'lucide-react';
+import { Coffee, ArrowRight, User as UserIcon, AlertCircle, Phone, MapPin, Calendar, Loader2, Globe, Sparkles, Tag, Star, CheckCircle2, ChevronDown } from 'lucide-react';
 import { loginUser, registerUser } from '../services/storage';
 import { User } from '../types';
 import { getBrandConfig } from '../services/branding';
+import { fetchAdminList } from '../services/adminConfig';
+import { AdminEntry } from '../types';
 
 interface AuthViewProps {
   onLogin: (user: User | null, isAdmin: boolean) => void;
@@ -132,6 +134,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('Kelapa Gading');
   const [adminReferral, setAdminReferral] = useState('');
+  const [adminList, setAdminList] = useState<AdminEntry[]>([]);
+  const [isLoadingAdmins, setIsLoadingAdmins] = useState(true);
+
+  useEffect(() => {
+    fetchAdminList().then(list => {
+      setAdminList(list);
+      setIsLoadingAdmins(false);
+    });
+  }, []);
 
   // Handle phone number input - only allow digits, no leading 0
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -449,26 +460,35 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 </p>
               </div>
 
-              {/* Game Master Referral Input (Optional) */}
+              {/* Staff Pick Dropdown */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-bold text-gray-900 tracking-tight">
-                  Staff Referral
+                  Served By Staff
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-500 transition-colors">
                     <Tag size={18} />
                   </div>
-                  <input
-                    type="text"
+                  <select
                     value={adminReferral}
                     onChange={(e) => setAdminReferral(e.target.value)}
-                    placeholder="Enter staff name (Optional)"
-                    className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all font-medium hover:border-gray-300"
-                  />
+                    disabled={isLoadingAdmins}
+                    className="w-full pl-10 pr-10 py-3.5 rounded-xl border-2 border-gray-200 bg-white text-gray-900 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all font-medium hover:border-gray-300 appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <option value="">{isLoadingAdmins ? 'Loading staff...' : '— Select staff (optional) —'}</option>
+                    {adminList.map(admin => (
+                      <option key={admin.id} value={admin.code}>
+                        {admin.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                    <ChevronDown size={16} />
+                  </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
                   <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                  Ask your staff for this (leave blank if none)
+                  Select the staff who assisted you (optional)
                 </p>
               </div>
             </div>
