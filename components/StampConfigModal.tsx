@@ -53,8 +53,8 @@ export const StampConfigModal: React.FC<StampConfigModalProps> = ({ onClose }) =
 
     const handleAddAdmin = () => {
         const trimmedName = newAdminName.trim();
-        const trimmedCode = newAdminCode.trim();
-        if (!trimmedName || !trimmedCode) return;
+        const trimmedCode = newAdminCode.trim() || trimmedName; // default to name if empty
+        if (!trimmedName) return;
 
         if (admins.some(a => a.code.toLowerCase() === trimmedCode.toLowerCase())) {
             alert('An admin with this code already exists.');
@@ -259,13 +259,16 @@ export const StampConfigModal: React.FC<StampConfigModalProps> = ({ onClose }) =
                                             type="text"
                                             value={newAdminName}
                                             onChange={(e) => setNewAdminName(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddAdmin()}
                                             placeholder="e.g. John"
                                             className="w-full pl-8 pr-3 py-2.5 rounded-lg border-2 border-gray-600 bg-gray-700/50 text-white placeholder:text-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all font-medium"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-2">Referral Code</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-2">
+                                        Referral Code <span className="text-gray-500 font-normal">(optional)</span>
+                                    </label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
                                             <Tag size={14} />
@@ -274,7 +277,8 @@ export const StampConfigModal: React.FC<StampConfigModalProps> = ({ onClose }) =
                                             type="text"
                                             value={newAdminCode}
                                             onChange={(e) => setNewAdminCode(e.target.value)}
-                                            placeholder="e.g. JOHN01"
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddAdmin()}
+                                            placeholder={newAdminName.trim() || 'defaults to name'}
                                             className="w-full pl-8 pr-3 py-2.5 rounded-lg border-2 border-gray-600 bg-gray-700/50 text-white placeholder:text-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all font-mono"
                                         />
                                     </div>
@@ -282,7 +286,7 @@ export const StampConfigModal: React.FC<StampConfigModalProps> = ({ onClose }) =
                             </div>
                             <button
                                 onClick={handleAddAdmin}
-                                disabled={!newAdminName.trim() || !newAdminCode.trim()}
+                                disabled={!newAdminName.trim()}
                                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
                             >
                                 <UserPlus size={20} />

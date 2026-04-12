@@ -140,13 +140,10 @@ export const fetchStampConfig = async (): Promise<StampConfig> => {
  */
 export const saveStampConfig = async (config: StampConfig): Promise<boolean> => {
     try {
-        const url = new URL(API_URL);
-        url.searchParams.append('action', 'saveCheckpointConfig');
-
-        const response = await fetch(url.toString(), {
+        const response = await fetch(API_URL, {
             method: 'POST',
             mode: 'cors',
-            body: JSON.stringify(config)
+            body: JSON.stringify({ action: 'saveCheckpointConfig', ...config })
         });
 
         const data = await response.json();

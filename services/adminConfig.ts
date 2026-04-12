@@ -111,13 +111,10 @@ export const fetchAdminList = async (): Promise<AdminEntry[]> => {
  */
 export const saveAdminList = async (admins: AdminEntry[]): Promise<boolean> => {
     try {
-        const url = new URL(API_URL);
-        url.searchParams.append('action', 'saveAdminList');
-
-        const response = await fetch(url.toString(), {
+        const response = await fetch(API_URL, {
             method: 'POST',
             mode: 'cors',
-            body: JSON.stringify({ admins })
+            body: JSON.stringify({ action: 'saveAdminList', admins })
         });
 
         const data = await response.json();

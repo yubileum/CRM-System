@@ -614,6 +614,45 @@ function handleRequest(e) {
       result = { success: true, admins: admins };
     }
 
+    // Get admin list
+    else if (action === 'getAdminList') {
+      const adminSheet = getOrCreateSheet(doc, 'AdminList', ['id', 'name', 'code']);
+      const allRows = adminSheet.getDataRange().getValues().slice(1);
+      const admins = allRows
+        .filter(function(row) { return String(row[0]).trim() !== ''; })
+        .map(function(row) {
+          return {
+            id: String(row[0]),
+            name: String(row[1]),
+            code: String(row[2])
+          };
+        });
+      result = { success: true, admins: admins };
+    }
+
+    // Save admin list
+    else if (action === 'saveAdminList') {
+      const adminSheet = getOrCreateSheet(doc, 'AdminList', ['id', 'name', 'code']);
+      const admins = requestData.admins || [];
+
+      // Clear existing data (except header)
+      if (adminSheet.getLastRow() > 1) {
+        adminSheet.deleteRows(2, adminSheet.getLastRow() - 1);
+      }
+
+      // Append each admin
+      admins.forEach(function(admin) {
+        adminSheet.appendRow([
+          admin.id || 'admin-' + new Date().getTime(),
+          String(admin.name || '').trim(),
+          String(admin.code || '').trim()
+        ]);
+      });
+      SpreadsheetApp.flush();
+
+      result = { success: true, admins: admins };
+    }
+
     // Reset stamps to 0 (after reward redemption)
     else if (action === 'resetStamps') {
       const userId = requestData.userId;
@@ -635,6 +674,7 @@ function handleRequest(e) {
         result = { success: true, user: mapRowToUser(updatedRow, history) };
       }
     }
+
 
     else {
       result = { success: false, error: "Unknown action" };
