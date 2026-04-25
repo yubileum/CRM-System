@@ -357,17 +357,27 @@ export const logAdminTransaction = (userId: string, userName: string, type: 'add
   localStorage.setItem(ADMIN_LOGS_KEY, JSON.stringify(logs));
 };
 
-export const generateTransactionCSV = (): string => {
-  const logs = JSON.parse(localStorage.getItem(ADMIN_LOGS_KEY) || '[]');
-  if (logs.length === 0) return 'No transactions recorded.';
+export const fetchAllTransactions = async (): Promise<any[]> => {
+  const res = await callApi('getTransactions');
+  if (res?.success && Array.isArray(res.transactions)) {
+    return res.transactions;
+  }
+  return [];
+};
+
+export const generateTransactionCSV = (transactions: any[]): string => {
+  if (transactions.length === 0) return 'No transactions recorded.';
+
+  // Sort newest first
+  const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
 
   const headers = ['Date', 'Time', 'Member Name', 'Member ID', 'Action', 'Amount'];
-  const rows = logs.map((l: any) => {
+  const rows = sorted.map((l: any) => {
     const d = new Date(l.timestamp);
     return [
       d.toLocaleDateString(),
       d.toLocaleTimeString(),
-      l.userName,
+      `"${l.userName || ''}"`,
       l.userId,
       l.type.toUpperCase(),
       l.amount || 1

@@ -614,43 +614,31 @@ function handleRequest(e) {
       result = { success: true, admins: admins };
     }
 
-    // Get admin list
-    else if (action === 'getAdminList') {
-      const adminSheet = getOrCreateSheet(doc, 'AdminList', ['id', 'name', 'code']);
-      const allRows = adminSheet.getDataRange().getValues().slice(1);
-      const admins = allRows
-        .filter(function(row) { return String(row[0]).trim() !== ''; })
-        .map(function(row) {
-          return {
-            id: String(row[0]),
-            name: String(row[1]),
-            code: String(row[2])
-          };
-        });
-      result = { success: true, admins: admins };
-    }
-
-    // Save admin list
-    else if (action === 'saveAdminList') {
-      const adminSheet = getOrCreateSheet(doc, 'AdminList', ['id', 'name', 'code']);
-      const admins = requestData.admins || [];
-
-      // Clear existing data (except header)
-      if (adminSheet.getLastRow() > 1) {
-        adminSheet.deleteRows(2, adminSheet.getLastRow() - 1);
-      }
-
-      // Append each admin
-      admins.forEach(function(admin) {
-        adminSheet.appendRow([
-          admin.id || 'admin-' + new Date().getTime(),
-          String(admin.name || '').trim(),
-          String(admin.code || '').trim()
-        ]);
+    // Get all transactions (for admin download logs)
+    else if (action === 'getTransactions') {
+      const allUsers = usersSheet.getDataRange().getValues().slice(1);
+      // Build a map of userId -> userName for enrichment
+      const userMap = {};
+      allUsers.forEach(function(row) {
+        userMap[String(row[0])] = String(row[1]);
       });
-      SpreadsheetApp.flush();
 
-      result = { success: true, admins: admins };
+      const allTx = txSheet.getDataRange().getValues().slice(1);
+      allTx.sort(function(a, b) { return b[4] - a[4]; }); // newest first
+
+      const transactions = allTx.map(function(r) {
+        return {
+          id: r[0],
+          userId: r[1],
+          userName: userMap[String(r[1])] || '',
+          type: r[2],
+          amount: Number(r[3]),
+          timestamp: Number(r[4]),
+          dateString: r[5]
+        };
+      });
+
+      result = { success: true, transactions: transactions };
     }
 
     // Reset stamps to 0 (after reward redemption)

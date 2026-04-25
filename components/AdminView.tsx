@@ -5,7 +5,7 @@ import { Scanner } from './Scanner';
 import { BrandSettings } from './BrandSettings';
 import { StampConfigModal } from './StampConfigModal';
 import { DashboardView } from './DashboardView';
-import { logAdminTransaction, generateTransactionCSV, generateMembersCSV, applyStampToUser, resetStampsForUser, fetchUserById, fetchUserByPhone } from '../services/storage';
+import { logAdminTransaction, generateTransactionCSV, generateMembersCSV, applyStampToUser, resetStampsForUser, fetchUserById, fetchUserByPhone, fetchAllTransactions } from '../services/storage';
 import { sendStampSignal, sendScanSignal, fetchRemoteUser } from '../services/connection';
 import { User } from '../types';
 import { getBrandConfig } from '../services/branding';
@@ -258,14 +258,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
         }
     };
 
-    const downloadReport = () => {
-        const csv = generateTransactionCSV();
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `dice_report_${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
+    const downloadReport = async () => {
+        setStatus('syncing');
+        setMessage('Fetching transaction logs...');
+        try {
+            const transactions = await fetchAllTransactions();
+            const csv = generateTransactionCSV(transactions);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dice_report_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            setStatus('success');
+            setMessage(`Downloaded ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}.`);
+            setTimeout(() => { setStatus('idle'); setMessage(''); }, 3000);
+        } catch (err) {
+            setStatus('error');
+            setMessage('Failed to fetch logs. Check connection.');
+            setTimeout(() => { setStatus('idle'); setMessage(''); }, 4000);
+        }
     };
 
     const downloadMembers = async () => {
