@@ -575,6 +575,48 @@ function handleRequest(e) {
       };
     }
 
+    // Voucher statistics for admin dashboard
+    else if (action === 'getVoucherStats') {
+      const vouchersSheet = getOrCreateSheet(doc, 'Vouchers', [
+        'id', 'userId', 'checkpointStampCount', 'rewardName', 'createdAt', 'expiresAt', 'redeemedAt', 'status'
+      ]);
+      const allVouchers = vouchersSheet.getDataRange().getValues().slice(1);
+      const now = new Date();
+
+      let activeCount = 0, redeemedCount = 0, expiredCount = 0;
+      const rewardMap = {}; // { rewardName: { active, redeemed, expired } }
+
+      allVouchers.forEach(function(row) {
+        const rewardName = String(row[3] || 'Unknown').trim();
+        const expiresAt = new Date(row[5]);
+        let status = String(row[7] || 'active');
+        if (status === 'active' && expiresAt < now) status = 'expired';
+
+        if (!rewardMap[rewardName]) rewardMap[rewardName] = { active: 0, redeemed: 0, expired: 0 };
+
+        if (status === 'active')    { activeCount++;   rewardMap[rewardName].active++; }
+        else if (status === 'redeemed') { redeemedCount++; rewardMap[rewardName].redeemed++; }
+        else if (status === 'expired')  { expiredCount++;  rewardMap[rewardName].expired++; }
+      });
+
+      // Build sorted distribution array (by total, descending)
+      const distribution = Object.keys(rewardMap).map(function(name) {
+        const d = rewardMap[name];
+        return { name: name, active: d.active, redeemed: d.redeemed, expired: d.expired, total: d.active + d.redeemed + d.expired };
+      }).sort(function(a, b) { return b.total - a.total; });
+
+      result = {
+        success: true,
+        stats: {
+          active: activeCount,
+          redeemed: redeemedCount,
+          expired: expiredCount,
+          total: activeCount + redeemedCount + expiredCount,
+          distribution: distribution
+        }
+      };
+    }
+
     // Get admin list
     else if (action === 'getAdminList') {
       const adminSheet = getOrCreateSheet(doc, 'AdminList', ['id', 'name', 'code']);

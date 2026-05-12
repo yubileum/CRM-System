@@ -343,6 +343,11 @@ export const fetchDashboardData = async (): Promise<any> => {
   return res?.success ? res.data : null;
 };
 
+export const fetchVoucherStats = async (): Promise<any> => {
+  const res = await callApi('getVoucherStats');
+  return res?.success ? res.stats : null;
+};
+
 
 export const logAdminTransaction = (userId: string, userName: string, type: 'add' | 'redeem', amount: number = 1) => {
   const logs = JSON.parse(localStorage.getItem(ADMIN_LOGS_KEY) || '[]');

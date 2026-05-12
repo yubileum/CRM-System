@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import {
   X, Users, UserX, TrendingUp, RefreshCw, AlertTriangle,
   Phone, Award, Calendar, BarChart2, Activity, ArrowUpRight,
-  Gift, Tag, Star
+  Gift, Tag, Star, Ticket
 } from 'lucide-react';
-import { fetchDashboardData } from '../services/storage';
+import { fetchDashboardData, fetchVoucherStats } from '../services/storage';
 
 // ─── Brand Colors ─────────────────────────────────────────────────────────────
 const C = {
@@ -466,24 +466,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'overview' | 'retention' | 'referral' | 'birthday'>('overview');
+  const [tab, setTab] = useState<'overview' | 'retention' | 'referral' | 'birthday' | 'vouchers'>('overview');
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [selectedReferralMonth, setSelectedReferralMonth] = useState<string | null>(null);
+  const [retentionMode, setRetentionMode] = useState<'weekly' | 'monthly'>('monthly');
+  const [voucherStats, setVoucherStats] = useState<any>(null);
 
   const load = async () => {
     setLoading(true); setError(''); setSelectedWeek(null);
     try {
-      const result = await fetchDashboardData();
+      const [result, vStats] = await Promise.all([
+        fetchDashboardData(),
+        fetchVoucherStats()
+      ]);
       if (result) setData(result);
       else setError('Failed to load dashboard data.');
+      if (vStats) setVoucherStats(vStats);
     } catch { setError('Network error. Please try again.'); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
-  const retentionRate = data
-    ? Math.round(((data.totalMembers - data.atRiskCount) / Math.max(data.totalMembers, 1)) * 100)
-    : 0;
+  /**
+   * Retention metrics derived from available backend data:
+   *
+   * Monthly (<30 days): exact backend figure
+   *   active = totalMembers - atRiskCount  (visited in last 30 days)
+   *
+   * Weekly (<7 days): best approximation from available fields
+   *   active = newActiveCount (members who joined < 1 month ago AND are still active)
+   *          + veteranActiveCount (loyal members, visited < 30 days)
+   *   at-risk = everyone else (atRiskCount + members visited 7-29 days ago)
+   *   Note: members visited 7-29 days ago cannot be isolated without per-user data,
+   *   so weekly uses newActiveCount as the "recently engaged" proxy.
+   */
+  const computedRetention = (() => {
+    if (!data) return { periodActive: 0, periodAtRisk: 0, rate: 0 };
+    if (retentionMode === 'monthly') {
+      const active = data.totalMembers - data.atRiskCount;
+      const rate = Math.round((active / Math.max(data.totalMembers, 1)) * 100);
+      return { periodActive: active, periodAtRisk: data.atRiskCount, rate };
+    } else {
+      // Weekly: newActiveCount = members who joined < 1 month AND visited < 30 days
+      // These are the most recently engaged members — best weekly proxy from available data
+      const weeklyActive = data.newActiveCount ?? 0;
+      const periodAtRisk = data.totalMembers - weeklyActive;
+      const rate = Math.round((weeklyActive / Math.max(data.totalMembers, 1)) * 100);
+      return { periodActive: weeklyActive, periodAtRisk, rate };
+    }
+  })();
+
+  const retentionRate = computedRetention.rate;
   const totalNewThisMonth = data
     ? data.weeklyGrowth.slice(-4).reduce((s, w) => s + w.count, 0) : 0;
 
@@ -533,6 +566,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
             { id: 'retention', label: '🔄 Retention' },
             { id: 'referral',  label: '🏷️ Referral' },
             { id: 'birthday',  label: '🎂 Birthday' },
+            { id: 'vouchers',  label: '🎟️ Vouchers' },
           ] as const).map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)}
               className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
@@ -830,13 +864,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
           {/* ── RETENTION TAB ── */}
           {data && !loading && tab === 'retention' && (
             <>
+              {/* ── Retention Period Selector ── */}
+              <div className={card} style={{ ...cardStyle, padding: '12px 20px' }}>
+                <div className="flex items-center gap-3">
+                  <Calendar size={14} style={{ color: C.greenLt }} />
+                  <span className="text-xs font-black uppercase tracking-wider" style={{ color: C.text }}>View by</span>
+                  {/* Toggle pill */}
+                  <div className="flex items-center ml-auto rounded-xl overflow-hidden"
+                    style={{ background: C.grid, border: `1px solid ${C.gridLt}` }}>
+                    {(['weekly', 'monthly'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setRetentionMode(mode)}
+                        className="px-4 py-1.5 text-xs font-black transition-all capitalize"
+                        style={retentionMode === mode
+                          ? { background: C.green, color: '#fff', boxShadow: `0 0 14px ${C.green}55` }
+                          : { background: 'transparent', color: C.textDim }
+                        }
+                      >
+                        {mode === 'weekly' ? '📅 Weekly' : '🗓️ Monthly'}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[10px] font-bold" style={{ color: C.textDim }}>
+                    {retentionMode === 'weekly' ? 'Visited in the last 7 days' : 'Visited in the last 30 days'}
+                  </span>
+                </div>
+              </div>
+
               {/* KPI row — 2 balanced cards */}
               {(() => {
-                const activeTotal = data.totalMembers - data.atRiskCount;
+                const activeTotal = computedRetention.periodActive;
+                const atRiskTotal = computedRetention.periodAtRisk;
                 const newCount = data.newActiveCount ?? 0;
                 const loyalCount = data.veteranActiveCount ?? 0;
                 const newPct = activeTotal > 0 ? Math.round((newCount / activeTotal) * 100) : 0;
                 const loyalPct = activeTotal > 0 ? 100 - newPct : 0;
+                const activeSubtitle = retentionMode === 'weekly'
+                  ? 'New members (joined <1 month)'
+                  : 'Visited in last 30 days';
+                const atRiskSubtitle = retentionMode === 'weekly'
+                  ? 'Not newly joined this month'
+                  : 'No visit in 30+ days';
                 return (
                   <div className="grid grid-cols-2 gap-3">
 
@@ -847,7 +916,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                         <div>
                           <p className="text-3xl font-black leading-none" style={{ color: C.greenLt }}>{activeTotal}</p>
                           <p className="text-[10px] font-bold uppercase tracking-wider mt-1.5" style={{ color: C.textDim }}>Active Members</p>
-                          <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Visited in last 30 days</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>{activeSubtitle}</p>
                         </div>
                         <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
                           style={{ background: `${C.green}55` }}>
@@ -892,9 +961,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                     <div className={card} style={{ ...cardStyle, borderColor: 'rgba(245,158,11,0.35)' }}>
                       <div className="flex items-start justify-between mb-4">
                         <div>
-                          <p className="text-3xl font-black leading-none" style={{ color: C.amber }}>{data.atRiskCount}</p>
+                          <p className="text-3xl font-black leading-none" style={{ color: C.amber }}>{atRiskTotal}</p>
                           <p className="text-[10px] font-bold uppercase tracking-wider mt-1.5" style={{ color: C.textDim }}>At-Risk</p>
-                          <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>No visit in 30+ days</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>{atRiskSubtitle}</p>
                         </div>
                         <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
                           style={{ background: 'rgba(245,158,11,0.15)' }}>
@@ -905,12 +974,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                       <div className="h-2 rounded-full overflow-hidden" style={{ background: C.grid }}>
                         <div className="h-full rounded-full transition-all duration-700"
                           style={{
-                            width: `${data.totalMembers > 0 ? Math.round((data.atRiskCount / data.totalMembers) * 100) : 0}%`,
+                            width: `${data.totalMembers > 0 ? Math.round((atRiskTotal / data.totalMembers) * 100) : 0}%`,
                             background: 'linear-gradient(90deg, #d97706, #f59e0b)'
                           }} />
                       </div>
                       <p className="text-[10px] font-bold mt-1.5" style={{ color: C.textDim }}>
-                        {data.totalMembers > 0 ? Math.round((data.atRiskCount / data.totalMembers) * 100) : 0}% of total members
+                        {data.totalMembers > 0 ? Math.round((atRiskTotal / data.totalMembers) * 100) : 0}% of total members
                       </p>
                     </div>
 
@@ -993,6 +1062,129 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                   </div>
                 )}
               </div>
+            </>
+          )}
+          {/* ── VOUCHERS TAB ── */}
+          {!loading && tab === 'vouchers' && (
+            <>
+              {/* KPI Cards */}
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  {
+                    label: 'ACTIVE',
+                    value: voucherStats?.active ?? 0,
+                    icon: <Gift size={18} />,
+                    iconBg: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                    glow: 'rgba(124,58,237,0.5)',
+                    border: 'rgba(124,58,237,0.4)'
+                  },
+                  {
+                    label: 'REDEEMED',
+                    value: voucherStats?.redeemed ?? 0,
+                    icon: <Award size={18} />,
+                    iconBg: 'linear-gradient(135deg, #d97706, #f59e0b)',
+                    glow: 'rgba(245,158,11,0.4)',
+                    border: 'rgba(245,158,11,0.35)'
+                  },
+                  {
+                    label: 'EXPIRED',
+                    value: voucherStats?.expired ?? 0,
+                    icon: <X size={18} />,
+                    iconBg: 'linear-gradient(135deg, #dc2626, #ef4444)',
+                    glow: 'rgba(239,68,68,0.45)',
+                    border: 'rgba(239,68,68,0.35)'
+                  },
+                ].map(kpi => (
+                  <div key={kpi.label} className={card} style={{ ...cardStyle, borderColor: kpi.border }}>
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-4 text-white"
+                      style={{ background: kpi.iconBg, boxShadow: `0 0 18px ${kpi.glow}` }}>
+                      {kpi.icon}
+                    </div>
+                    <p className="text-4xl font-black text-white leading-none">{kpi.value}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mt-2" style={{ color: C.textDim }}>{kpi.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Voucher Distribution */}
+              {!voucherStats ? (
+                <div className={card} style={cardStyle}>
+                  <div className="py-10 text-center">
+                    <Ticket size={32} className="mx-auto mb-3" style={{ color: C.textDim }} />
+                    <p className="font-bold text-sm" style={{ color: C.textDim }}>No voucher data available yet.</p>
+                    <p className="text-xs mt-1" style={{ color: C.textDim }}>Vouchers will appear here once members earn them.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className={card} style={cardStyle}>
+                  <div className="flex items-center gap-2 mb-5">
+                    <Tag size={15} style={{ color: '#a78bfa' }} />
+                    <p className="font-black text-sm text-white">Voucher Distribution</p>
+                  </div>
+
+                  {(!voucherStats.distribution || voucherStats.distribution.length === 0) ? (
+                    <div className="py-8 text-center">
+                      <p className="font-bold text-sm" style={{ color: C.textDim }}>No vouchers issued yet.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      {voucherStats.distribution.map((item: any, i: number) => {
+                        const total = Math.max(item.total, 1);
+                        const activePct  = (item.active   / total) * 100;
+                        const redeemedPct = (item.redeemed / total) * 100;
+                        return (
+                          <div key={item.name}>
+                            {/* Row header */}
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
+                                  style={{ background: C.gridLt, color: '#a78bfa' }}>
+                                  {i + 1}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <Ticket size={12} style={{ color: C.textDim }} />
+                                  <span className="text-sm font-black" style={{ color: '#e5f0e8' }}>{item.name}</span>
+                                </div>
+                              </div>
+                              <span className="text-sm font-black" style={{ color: '#a78bfa' }}>{item.total} total</span>
+                            </div>
+
+                            {/* Segmented progress bar */}
+                            <div className="h-2 rounded-full overflow-hidden flex" style={{ background: C.grid }}>
+                              {/* Active segment — purple */}
+                              <div className="h-full transition-all duration-700"
+                                style={{
+                                  width: `${activePct}%`,
+                                  background: 'linear-gradient(90deg, #7c3aed, #a78bfa)'
+                                }} />
+                              {/* Redeemed segment — amber */}
+                              <div className="h-full transition-all duration-700"
+                                style={{
+                                  width: `${redeemedPct}%`,
+                                  background: 'linear-gradient(90deg, #d97706, #f59e0b)'
+                                }} />
+                              {/* Expired remainder stays as gray track */}
+                            </div>
+
+                            {/* Sub-labels */}
+                            <div className="flex justify-between mt-1">
+                              <span className="text-[10px] font-bold" style={{ color: C.textDim }}>
+                                {item.active} Active
+                              </span>
+                              <span className="text-[10px] font-bold" style={{ color: C.textDim }}>
+                                {item.redeemed} Redeemed
+                              </span>
+                              <span className="text-[10px] font-bold" style={{ color: C.textDim }}>
+                                {item.expired} Expired
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
