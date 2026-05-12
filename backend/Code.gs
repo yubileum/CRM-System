@@ -24,6 +24,10 @@ function setup() {
   getOrCreateSheet(doc, 'AdminList', [
       'id', 'name', 'code'
   ]);
+  // NEW: Initialize WATemplates sheet
+  getOrCreateSheet(doc, 'WATemplates', [
+      'key', 'template'
+  ]);
   Logger.log("Setup Complete. You can now Deploy.");
 }
 
@@ -582,9 +586,23 @@ function handleRequest(e) {
       ]);
       const allVouchers = vouchersSheet.getDataRange().getValues().slice(1);
       const now = new Date();
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const sevenDaysLater = new Date(now.getTime() + 7 * msPerDay);
+
+      // Build user lookup map from Users sheet
+      const allUsersData = usersSheet.getDataRange().getValues().slice(1);
+      const userMap = {};
+      allUsersData.forEach(function(uRow) {
+        const uid = String(uRow[0]).trim();
+        userMap[uid] = {
+          name:  String(uRow[1] || '').trim(),
+          phone: String(uRow[3] || '').trim()
+        };
+      });
 
       let activeCount = 0, redeemedCount = 0, expiredCount = 0;
       const rewardMap = {}; // { rewardName: { active, redeemed, expired } }
+      const nearlyExpiring = []; // active vouchers expiring within 7 days
 
       allVouchers.forEach(function(row) {
         const rewardName = String(row[3] || 'Unknown').trim();
@@ -597,7 +615,26 @@ function handleRequest(e) {
         if (status === 'active')    { activeCount++;   rewardMap[rewardName].active++; }
         else if (status === 'redeemed') { redeemedCount++; rewardMap[rewardName].redeemed++; }
         else if (status === 'expired')  { expiredCount++;  rewardMap[rewardName].expired++; }
+
+        // Collect nearly-expiring active vouchers (expire within 7 days from now)
+        if (status === 'active' && expiresAt >= now && expiresAt <= sevenDaysLater) {
+          const userId = String(row[1]).trim();
+          const user   = userMap[userId] || { name: 'Unknown', phone: '-' };
+          const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / msPerDay);
+          nearlyExpiring.push({
+            voucherId:   String(row[0]),
+            userId:      userId,
+            userName:    user.name,
+            userPhone:   user.phone,
+            rewardName:  rewardName,
+            expiresAt:   expiresAt.toISOString(),
+            daysLeft:    daysLeft
+          });
+        }
       });
+
+      // Sort nearly-expiring by soonest expiry first
+      nearlyExpiring.sort(function(a, b) { return a.daysLeft - b.daysLeft; });
 
       // Build sorted distribution array (by total, descending)
       const distribution = Object.keys(rewardMap).map(function(name) {
@@ -612,7 +649,8 @@ function handleRequest(e) {
           redeemed: redeemedCount,
           expired: expiredCount,
           total: activeCount + redeemedCount + expiredCount,
-          distribution: distribution
+          distribution: distribution,
+          nearlyExpiring: nearlyExpiring
         }
       };
     }
@@ -705,6 +743,32 @@ function handleRequest(e) {
       }
     }
 
+
+    // Get WhatsApp message templates
+    else if (action === 'getWATemplates') {
+      const tplSheet = getOrCreateSheet(doc, 'WATemplates', ['key', 'template']);
+      const rows = tplSheet.getDataRange().getValues().slice(1);
+      const templates = {};
+      rows.forEach(function(r) {
+        if (String(r[0]).trim()) templates[String(r[0]).trim()] = String(r[1] || '');
+      });
+      result = { success: true, templates: templates };
+    }
+
+    // Save WhatsApp message templates
+    else if (action === 'saveWATemplates') {
+      const tplSheet = getOrCreateSheet(doc, 'WATemplates', ['key', 'template']);
+      const templates = requestData.templates || {};
+      // Clear existing rows (keep header)
+      if (tplSheet.getLastRow() > 1) {
+        tplSheet.deleteRows(2, tplSheet.getLastRow() - 1);
+      }
+      Object.keys(templates).forEach(function(key) {
+        tplSheet.appendRow([key, String(templates[key] || '')]);
+      });
+      SpreadsheetApp.flush();
+      result = { success: true, templates: templates };
+    }
 
     else {
       result = { success: false, error: "Unknown action" };

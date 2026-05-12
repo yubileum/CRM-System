@@ -348,6 +348,16 @@ export const fetchVoucherStats = async (): Promise<any> => {
   return res?.success ? res.stats : null;
 };
 
+export const fetchWATemplates = async (): Promise<Record<string, string> | null> => {
+  const res = await callApi('getWATemplates');
+  return res?.success ? res.templates : null;
+};
+
+export const saveWATemplates = async (templates: Record<string, string>): Promise<boolean> => {
+  const res = await callApi('saveWATemplates', {}, { templates });
+  return res?.success === true;
+};
+
 
 export const logAdminTransaction = (userId: string, userName: string, type: 'add' | 'redeem', amount: number = 1) => {
   const logs = JSON.parse(localStorage.getItem(ADMIN_LOGS_KEY) || '[]');

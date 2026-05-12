@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import {
   X, Users, UserX, TrendingUp, RefreshCw, AlertTriangle,
   Phone, Award, Calendar, BarChart2, Activity, ArrowUpRight,
-  Gift, Tag, Star, Ticket
+  Gift, Tag, Star, Ticket, MessageCircle
 } from 'lucide-react';
 import { fetchDashboardData, fetchVoucherStats } from '../services/storage';
+import { applyWATemplate } from './WATemplateConfig';
 
 // ─── Brand Colors ─────────────────────────────────────────────────────────────
 const C = {
@@ -461,6 +462,16 @@ const CumulativeChart: React.FC<{
   );
 };
 
+// ─── WhatsApp helper ──────────────────────────────────────────────────────────
+const openWhatsApp = (phone: string | number | null | undefined, message: string) => {
+  const digits = String(phone ?? '').replace(/\D/g, '');
+  const num = digits.startsWith('0') ? '62' + digits.slice(1) : digits;
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(message)}`, '_blank');
+};
+
+
+
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -796,10 +807,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                             <p className="text-xs truncate" style={{ color: C.textDim }}>{p.phone}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-xl"
-                          style={{ background: 'rgba(245,158,11,0.2)', border: `1px solid rgba(245,158,11,0.3)` }}>
-                          <Star size={12} style={{ color: C.amber }} />
-                          <span className="text-xs font-black" style={{ color: C.amber }}>Today!</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
+                            style={{ background: 'rgba(245,158,11,0.2)', border: `1px solid rgba(245,158,11,0.3)` }}>
+                            <Star size={12} style={{ color: C.amber }} />
+                            <span className="text-xs font-black" style={{ color: C.amber }}>Today!</span>
+                          </div>
+                          <button
+                            onClick={() => openWhatsApp(p.phone, applyWATemplate('birthdayToday', { nama: p.name }))}
+                            className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            style={{ background: '#25D36622', border: '1px solid #25D36644' }}
+                            title="Send WhatsApp greeting">
+                            <MessageCircle size={15} style={{ color: '#25D366' }} />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -849,9 +869,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                               <p className="text-xs truncate" style={{ color: C.textDim }}>{p.phone}</p>
                             </div>
                           </div>
-                          <span className="text-xs font-bold shrink-0" style={{ color: C.textDim }}>
-                            {p.birthDate}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs font-bold" style={{ color: C.textDim }}>
+                              {p.birthDate}
+                            </span>
+                            <button
+                              onClick={() => openWhatsApp(p.phone, applyWATemplate(
+                                isToday ? 'birthdayToday' : 'birthdayMonth',
+                                { nama: p.name }
+                              ))}  
+                              className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                              style={{ background: '#25D36622', border: '1px solid #25D36644' }}
+                              title="Send WhatsApp greeting">
+                              <MessageCircle size={14} style={{ color: '#25D366' }} />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1045,17 +1077,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                             <p className="text-xs truncate" style={{ color: C.textDim }}>{u.phone}</p>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className="flex items-center gap-1 justify-end">
-                            <Award size={11} style={{ color: C.textDim }} />
-                            <span className="text-xs font-bold" style={{ color: C.text }}>{u.stamps} stamps</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <div className="flex items-center gap-1 justify-end">
+                              <Award size={11} style={{ color: C.textDim }} />
+                              <span className="text-xs font-bold" style={{ color: C.text }}>{u.stamps} stamps</span>
+                            </div>
+                            <div className="flex items-center gap-1 justify-end mt-0.5">
+                              <Calendar size={11} style={{ color: C.amber }} />
+                              <span className="text-xs font-bold" style={{ color: C.amber }}>
+                                {u.daysSinceLastStamp !== null ? `${u.daysSinceLastStamp}d ago` : 'Never'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 justify-end mt-0.5">
-                            <Calendar size={11} style={{ color: C.amber }} />
-                            <span className="text-xs font-bold" style={{ color: C.amber }}>
-                              {u.daysSinceLastStamp !== null ? `${u.daysSinceLastStamp}d ago` : 'Never'}
-                            </span>
-                          </div>
+                          <button
+                            onClick={() => openWhatsApp(u.phone, applyWATemplate('atRisk', { nama: u.name }))}
+                            className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            style={{ background: '#25D36622', border: '1px solid #25D36644' }}
+                            title="Send WhatsApp re-engagement">
+                            <MessageCircle size={14} style={{ color: '#25D366' }} />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1185,8 +1226,109 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                   )}
                 </div>
               )}
+
+              {/* Nearly Expiring Vouchers — customer detail list */}
+              {voucherStats && (
+                <div className="rounded-2xl overflow-hidden border" style={{ ...cardStyle, padding: 0, borderColor: 'rgba(239,68,68,0.35)' }}>
+                  <div className="flex items-center gap-2 px-5 py-4"
+                    style={{ borderBottom: `1px solid ${C.gridLt}` }}>
+                    <AlertTriangle size={14} style={{ color: '#f87171' }} />
+                    <p className="font-black text-sm text-white">Vouchers Expiring in 7 Days</p>
+                    <span className="ml-auto text-xs font-black px-2.5 py-1 rounded-full"
+                      style={{
+                        background: (voucherStats.nearlyExpiring?.length ?? 0) > 0
+                          ? 'rgba(239,68,68,0.15)' : C.gridLt,
+                        color: (voucherStats.nearlyExpiring?.length ?? 0) > 0 ? '#f87171' : C.textDim,
+                        border: `1px solid ${(voucherStats.nearlyExpiring?.length ?? 0) > 0 ? 'rgba(239,68,68,0.4)' : C.gridLt}`
+                      }}>
+                      {voucherStats.nearlyExpiring?.length ?? 0}
+                    </span>
+                  </div>
+
+                  {(!voucherStats.nearlyExpiring || voucherStats.nearlyExpiring.length === 0) ? (
+                    <div className="py-10 text-center">
+                      <p className="text-2xl mb-2">✅</p>
+                      <p className="font-bold text-sm" style={{ color: C.textDim }}>No vouchers expiring within 7 days</p>
+                      <p className="text-xs mt-1" style={{ color: C.textDim }}>All active vouchers have more than a week left.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y max-h-96 overflow-y-auto" style={{ borderColor: C.grid }}>
+                      {voucherStats.nearlyExpiring.map((entry: any) => {
+                        const urgentColor = entry.daysLeft <= 2
+                          ? '#f87171'   // red — very urgent
+                          : entry.daysLeft <= 5
+                          ? '#f59e0b'   // amber — moderate
+                          : C.greenLt;  // green — still okay
+                        const urgentBg = entry.daysLeft <= 2
+                          ? 'rgba(239,68,68,0.12)'
+                          : entry.daysLeft <= 5
+                          ? 'rgba(245,158,11,0.12)'
+                          : `${C.green}18`;
+                        const urgentBorder = entry.daysLeft <= 2
+                          ? 'rgba(239,68,68,0.3)'
+                          : entry.daysLeft <= 5
+                          ? 'rgba(245,158,11,0.3)'
+                          : `${C.green}40`;
+
+                        return (
+                          <div key={entry.voucherId}
+                            className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02]">
+                            {/* Avatar */}
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0"
+                              style={{ background: C.greenDim }}>
+                              {entry.userName.charAt(0)}
+                            </div>
+
+                            {/* Customer info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm text-white truncate">{entry.userName}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Phone size={11} style={{ color: C.textDim }} />
+                                <p className="text-xs truncate" style={{ color: C.textDim }}>{entry.userPhone}</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Ticket size={11} style={{ color: C.textDim }} />
+                                <p className="text-xs truncate" style={{ color: C.textDim }}>{entry.rewardName}</p>
+                              </div>
+                            </div>
+
+                            {/* Urgency badge + WhatsApp */}
+                            <div className="shrink-0 flex flex-col items-end gap-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="px-2.5 py-1 rounded-xl flex items-center gap-1.5"
+                                  style={{ background: urgentBg, border: `1px solid ${urgentBorder}` }}>
+                                  <AlertTriangle size={11} style={{ color: urgentColor }} />
+                                  <span className="text-xs font-black" style={{ color: urgentColor }}>
+                                    {entry.daysLeft === 0 ? 'Today!' : `${entry.daysLeft}d left`}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => openWhatsApp(entry.userPhone, applyWATemplate('nearlyExpiring', {
+                                    nama: entry.userName,
+                                    reward: entry.rewardName,
+                                    hari: entry.daysLeft === 0 ? 'hari ini' : String(entry.daysLeft),
+                                    tanggal: new Date(entry.expiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' }),
+                                  }))}
+                                  className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                  style={{ background: '#25D36622', border: '1px solid #25D36644' }}
+                                  title="Send WhatsApp voucher reminder">
+                                  <MessageCircle size={14} style={{ color: '#25D366' }} />
+                                </button>
+                              </div>
+                              <span className="text-[10px] font-bold" style={{ color: C.textDim }}>
+                                {new Date(entry.expiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
+
         </div>
       </div>
     </div>

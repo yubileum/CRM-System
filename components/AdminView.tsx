@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Footer } from './Footer';
-import { QrCode, LogOut, Check, AlertCircle, User as UserIcon, X, Download, Wifi, RefreshCw, Users, WifiOff, Cloud, Plus, Minus, Palette, Sparkles, TrendingUp, Phone, Globe, Edit3, Award, BarChart2 } from 'lucide-react';
+import { QrCode, LogOut, Check, AlertCircle, User as UserIcon, X, Download, Wifi, RefreshCw, Users, WifiOff, Cloud, Plus, Minus, Palette, Sparkles, TrendingUp, Phone, Globe, Edit3, Award, BarChart2, MessageCircle } from 'lucide-react';
+import { WATemplateConfig } from './WATemplateConfig';
 import { Scanner } from './Scanner';
 import { BrandSettings } from './BrandSettings';
 import { StampConfigModal } from './StampConfigModal';
@@ -20,6 +21,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
     const [showManualInput, setShowManualInput] = useState(false);
     const [showStampConfig, setShowStampConfig] = useState(false);
     const [showDashboard, setShowDashboard] = useState(false);
+    const [showWATemplates, setShowWATemplates] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'syncing'>('idle');
     const [message, setMessage] = useState('');
 
@@ -326,6 +328,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
                             title="Stamp Configuration"
                         >
                             <Award size={18} />
+                        </button>
+                        <button
+                            onClick={() => setShowWATemplates(true)}
+                            className="p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                            title="WhatsApp Message Templates"
+                        >
+                            <MessageCircle size={18} />
                         </button>
                         <button
                             onClick={() => setShowBrandSettings(true)}
@@ -651,6 +660,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onLogout }) => {
             {showBrandSettings && <BrandSettings onClose={() => setShowBrandSettings(false)} />}
             {showStampConfig && <StampConfigModal onClose={() => setShowStampConfig(false)} />}
             {showDashboard && <DashboardView onClose={() => setShowDashboard(false)} />}
+            {showWATemplates && <WATemplateConfig onClose={() => setShowWATemplates(false)} />}
         </div>
     );
 };
