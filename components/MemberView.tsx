@@ -322,6 +322,10 @@ export const MemberView: React.FC<MemberViewProps> = ({ currentUser, onLogout })
               <div>
                 <h2 className="text-3xl font-black text-white tracking-tight drop-shadow-lg">{user.name}</h2>
                 <p className="text-white/80 font-bold text-sm">Member since {new Date(user.createdAt || Date.now()).toLocaleDateString()}</p>
+                <p className="text-white/60 font-bold text-xs mt-0.5 flex items-center gap-1">
+                  <Award size={12} className="text-white/60" />
+                  {user.totalStamps ?? user.stamps} stamps earned all-time
+                </p>
               </div>
             </div>
 

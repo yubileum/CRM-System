@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import {
   X, Users, UserX, TrendingUp, RefreshCw, AlertTriangle,
   Phone, Award, Calendar, BarChart2, Activity, ArrowUpRight,
-  Gift, Tag, Star, Ticket, MessageCircle
+  Gift, Tag, Star, Ticket, MessageCircle, Download
 } from 'lucide-react';
-import { fetchDashboardData, fetchVoucherStats } from '../services/storage';
+import { fetchDashboardData, fetchVoucherStats, generateMembersCSV } from '../services/storage';
 import { applyWATemplate } from './WATemplateConfig';
 
 // ─── Brand Colors ─────────────────────────────────────────────────────────────
@@ -482,6 +482,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
   const [selectedReferralMonth, setSelectedReferralMonth] = useState<string | null>(null);
   const [retentionMode, setRetentionMode] = useState<'weekly' | 'monthly'>('monthly');
   const [voucherStats, setVoucherStats] = useState<any>(null);
+  const [downloadingMembers, setDownloadingMembers] = useState(false);
 
   const load = async () => {
     setLoading(true); setError(''); setSelectedWeek(null);
@@ -497,6 +498,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+
+  const handleDownloadMembers = async () => {
+    setDownloadingMembers(true);
+    try {
+      const csv = await generateMembersCSV();
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `member_list_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingMembers(false);
+    }
+  };
 
   /**
    * Retention metrics derived from available backend data:
@@ -637,9 +654,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <BarChart2 size={14} style={{ color: C.greenLt }} />
                   <p className="font-black text-sm text-white">Weekly Member Growth</p>
-                  <span className="ml-auto text-[10px] font-bold" style={{ color: C.textDim }}>
-                    Click bar or trend dot to drill down
-                  </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="hidden sm:inline text-[10px] font-bold" style={{ color: C.textDim }}>
+                      Click bar or trend dot to drill down
+                    </span>
+                    <button
+                      onClick={handleDownloadMembers}
+                      disabled={downloadingMembers}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 hover:bg-white/10 active:scale-95"
+                      style={{ background: `${C.green}33`, color: C.greenLt, border: `1px solid ${C.green}66` }}
+                      title="Download detail member list (CSV) with last check-in / sign up date">
+                      <Download size={12} className={downloadingMembers ? 'animate-bounce' : ''} />
+                      {downloadingMembers ? 'Preparing...' : 'Download'}
+                    </button>
+                  </div>
                 </div>
 
                 <ComboChart

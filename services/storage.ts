@@ -403,20 +403,42 @@ export const generateTransactionCSV = (transactions: any[]): string => {
 };
 
 export const generateMembersCSV = async (): Promise<string> => {
-  const users = await getAllUsersList();
+  const [users, transactions] = await Promise.all([getAllUsersList(), fetchAllTransactions()]);
   if (users.length === 0) return 'No members registered.';
 
-  const headers = ['Name', 'Username', 'Email', 'Phone', 'Address', 'Birth Date', 'Current Stamps', 'Member ID'];
-  const rows = users.map((u: User) => [
-    u.name,
-    u.username,
-    u.email,
-    u.phone,
-    `"${u.address || ''}"`,
-    u.birthDate || '',
-    u.stamps,
-    u.id
-  ].join(','));
+  // Last check-in (stamp added) per user, from transaction history
+  const lastCheckInPerUser: Record<string, number> = {};
+  transactions.forEach((tx: any) => {
+    if (tx.type !== 'add') return;
+    const uid = String(tx.userId);
+    const ts = Number(tx.timestamp);
+    if (!lastCheckInPerUser[uid] || ts > lastCheckInPerUser[uid]) {
+      lastCheckInPerUser[uid] = ts;
+    }
+  });
+
+  const headers = ['Name', 'Username', 'Email', 'Phone', 'Address', 'Birth Date', 'Current Stamps', 'Total Stamps (Lifetime)', 'Member ID', 'Sign Up Date', 'Last Check-in / Sign Up', 'Last Activity Type'];
+  const rows = users.map((u: User) => {
+    const lastCheckInTs = lastCheckInPerUser[String(u.id)];
+    const hasCheckedIn = (u.stamps || 0) > 0 && !!lastCheckInTs;
+    const signUpDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '';
+    const lastActivityDate = hasCheckedIn ? new Date(lastCheckInTs).toLocaleDateString() : signUpDate;
+    const lastActivityType = hasCheckedIn ? 'Check-in' : 'Sign Up';
+    return [
+      `"${u.name || ''}"`,
+      u.username || '',
+      u.email,
+      u.phone,
+      `"${u.address || ''}"`,
+      u.birthDate || '',
+      u.stamps,
+      u.totalStamps ?? u.stamps,
+      u.id,
+      signUpDate,
+      lastActivityDate,
+      lastActivityType
+    ].join(',');
+  });
 
   return [headers.join(','), ...rows].join('\n');
 };

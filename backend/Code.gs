@@ -1,14 +1,14 @@
 /**
- * DICE BACKEND - V15 (Added Admin List)
+ * DICE BACKEND - V16 (Added Total Stamps / lifetime stamp count)
  * 1. Run 'setup' function manually first to authorize scopes.
  * 2. Deploy as Web App -> Execute as: "Me", Access: "Anyone".
- * COLUMN ORDER: id | name | email | phone | address | referralCode | birthDate | currentStamps | maxStamps | createdAt
+ * COLUMN ORDER: id | name | email | phone | address | referralCode | birthDate | currentStamps | maxStamps | createdAt | totalStamps
  */
 
 function setup() {
   const doc = SpreadsheetApp.getActiveSpreadsheet();
   getOrCreateSheet(doc, 'Users', [
-      'id', 'name', 'email', 'phone', 'address', 'referralCode', 'birthDate', 'currentStamps', 'maxStamps', 'createdAt'
+      'id', 'name', 'email', 'phone', 'address', 'referralCode', 'birthDate', 'currentStamps', 'maxStamps', 'createdAt', 'totalStamps'
   ]);
   getOrCreateSheet(doc, 'Transactions', [
       'id', 'userId', 'type', 'amount', 'timestamp', 'dateString'
@@ -52,12 +52,14 @@ function handleRequest(e) {
 
     const action = requestData.action;
     const usersSheet = getOrCreateSheet(doc, 'Users', [
-      'id', 'name', 'email', 'phone', 'address', 'referralCode', 'birthDate', 'currentStamps', 'maxStamps', 'createdAt'
+      'id', 'name', 'email', 'phone', 'address', 'referralCode', 'birthDate', 'currentStamps', 'maxStamps', 'createdAt', 'totalStamps'
     ]);
-    
+
     const txSheet = getOrCreateSheet(doc, 'Transactions', [
       'id', 'userId', 'type', 'amount', 'timestamp', 'dateString'
     ]);
+
+    ensureTotalStampsColumn(usersSheet, txSheet);
 
     let result = { success: false };
 
@@ -70,21 +72,37 @@ function handleRequest(e) {
       if (exists) {
         result = { success: false, error: "Phone number already registered." };
       } else {
+        const userId = requestData.id || 'user-' + new Date().getTime();
+        const now = new Date();
+
+        // New members get 1 free welcome stamp on sign-up
         const newUser = [
-          requestData.id || 'user-' + new Date().getTime(),
+          userId,
           requestData.name,
           requestData.email,
           String(requestData.phone || '').trim(),
           requestData.address || '',
           String(requestData.adminReferral || '').trim(),  // referralCode
           String(requestData.birthDate || '').trim(),
-          0,   // currentStamps
+          1,   // currentStamps (welcome stamp)
           10,  // maxStamps
-          new Date().toISOString()
+          now.toISOString(),
+          1    // totalStamps (lifetime)
         ];
         usersSheet.appendRow(newUser);
+        txSheet.appendRow(['tx-' + now.getTime(), userId, 'add', 1, now.getTime(), now.toISOString()]);
         SpreadsheetApp.flush();
-        result = { success: true, user: mapRowToUser(newUser, []) };
+
+        // Check if the welcome stamp itself lands on a reward checkpoint
+        const checkpointConfig = getCheckpointConfiguration(doc);
+        const checkpoint = checkIfCheckpoint(1, checkpointConfig);
+        let newVoucher = null;
+        if (checkpoint) {
+          newVoucher = generateVoucher(doc, userId, 1, checkpoint.reward);
+        }
+
+        const history = getTransactionsForUser(txSheet, userId);
+        result = { success: true, user: mapRowToUser(newUser, history), voucher: newVoucher };
       }
     }
 
@@ -139,10 +157,13 @@ function handleRequest(e) {
         const realRow = userIndex + 2;
         const currentStamps = parseInt(allUsers[userIndex + 1][7] || 0); // stamps now col 7
         const maxStamps = parseInt(allUsers[userIndex + 1][8] || 10);    // maxStamps now col 8
-        
+        const totalStamps = parseInt(allUsers[userIndex + 1][10] || 0); // lifetime total, col 10 (0-indexed)
+
         if (currentStamps < maxStamps) {
           const newStampCount = currentStamps + 1;
+          const newTotalStamps = totalStamps + 1;
           usersSheet.getRange(realRow, 8).setValue(newStampCount); // currentStamps is col 8 (1-indexed)
+          usersSheet.getRange(realRow, 11).setValue(newTotalStamps); // totalStamps is col 11 (1-indexed)
           const now = new Date();
           txSheet.appendRow(['tx-' + now.getTime(), userId, 'add', 1, now.getTime(), now.toISOString()]);
           SpreadsheetApp.flush();
@@ -160,7 +181,8 @@ function handleRequest(e) {
           const history = getTransactionsForUser(txSheet, userId);
           const updatedRow = [...allUsers[userIndex + 1]];
           updatedRow[6] = newStampCount;
-          result = { 
+          updatedRow[10] = newTotalStamps;
+          result = {
             success: true, 
             user: mapRowToUser(updatedRow, history),
             voucher: newVoucher // Include voucher if checkpoint reached
@@ -840,8 +862,44 @@ function mapRowToUser(row, history) {
     stamps: parseInt(row[7] || 0),   // shifted from 6 -> 7
     maxStamps: parseInt(row[8] || 10), // shifted from 7 -> 8
     createdAt: row[9] || new Date().toISOString(), // shifted from 8 -> 9
+    totalStamps: parseInt(row[10] || 0), // lifetime stamps earned, never reset
     history: history
   };
+}
+
+/**
+ * Migration: adds the 'totalStamps' column to older Users sheets that predate it.
+ * Backfills each user's lifetime total from their 'add' transaction history,
+ * falling back to their current stamp count if no transaction history exists.
+ * No-op once the column is present.
+ */
+function ensureTotalStampsColumn(usersSheet, txSheet) {
+  const lastCol = usersSheet.getLastColumn();
+  const headers = usersSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf('totalStamps') !== -1) return;
+
+  const totalStampsCol = lastCol + 1;
+  usersSheet.getRange(1, totalStampsCol).setValue('totalStamps');
+
+  const lastRow = usersSheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const earnedPerUser = {};
+  txSheet.getDataRange().getValues().slice(1).forEach(function(r) {
+    if (r[2] !== 'add') return;
+    const uid = String(r[1]);
+    earnedPerUser[uid] = (earnedPerUser[uid] || 0) + Number(r[3] || 1);
+  });
+
+  const userRows = usersSheet.getRange(2, 1, lastRow - 1, 8).getValues(); // id (col1) + currentStamps (col8)
+  const backfill = userRows.map(function(row) {
+    const uid = String(row[0]);
+    const currentStamps = parseInt(row[7] || 0);
+    const earned = earnedPerUser[uid] || 0;
+    return [Math.max(earned, currentStamps)];
+  });
+
+  usersSheet.getRange(2, totalStampsCol, backfill.length, 1).setValues(backfill);
 }
 
 function jsonResponse(data) {

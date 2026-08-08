@@ -78,9 +78,9 @@ const FirstStampPopup: React.FC<{ user: User; onClose: () => void }> = ({ user, 
               <Coffee size={22} className="text-white" />
             </div>
             <div>
-              <p className="font-black text-gray-900 text-sm leading-snug">Get your first stamp now!</p>
+              <p className="font-black text-gray-900 text-sm leading-snug">Your first stamp is already in! 🎁</p>
               <p className="text-gray-500 text-xs mt-1 leading-relaxed">
-                Show this screen to the cashier and ask them to stamp your new loyalty card.
+                We've added 1 free stamp to your card just for signing up. Keep visiting to collect more!
               </p>
             </div>
           </div>
@@ -88,9 +88,9 @@ const FirstStampPopup: React.FC<{ user: User; onClose: () => void }> = ({ user, 
           {/* Step badges */}
           <div className="space-y-2.5">
             {[
-              { step: '1', text: 'Show this screen to the cashier' },
-              { step: '2', text: 'Ask them to scan / add your first stamp' },
-              { step: '3', text: 'Enjoy collecting more stamps!' },
+              { step: '✓', text: '1 free welcome stamp added to your card' },
+              { step: '2', text: 'Show your QR code at checkout to collect more' },
+              { step: '3', text: 'Reach checkpoints to unlock rewards!' },
             ].map(({ step, text }) => (
               <div key={step} className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full bg-brand-600 text-white font-black text-xs flex items-center justify-center shrink-0">

@@ -10,6 +10,7 @@ export interface User {
   stamps: number;
   maxStamps: number;
   createdAt?: string; // Registration date from database
+  totalStamps?: number; // Lifetime stamps earned, never reset (historical record)
   history: StampEvent[];
 }
 
