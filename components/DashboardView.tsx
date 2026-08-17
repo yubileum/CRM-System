@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   X, Users, UserX, TrendingUp, RefreshCw, AlertTriangle,
   Phone, Award, Calendar, BarChart2, Activity, ArrowUpRight,
-  Gift, Tag, Star, Ticket, MessageCircle, Download
+  Gift, Tag, Star, Ticket, MessageCircle, Download, ChevronDown, FileSpreadsheet
 } from 'lucide-react';
 import { fetchDashboardData, fetchVoucherStats, generateMembersCSV } from '../services/storage';
 import { applyWATemplate } from './WATemplateConfig';
+import { getAvailableWeeks, downloadWeeklyExcel, type WeekOption } from '../services/weeklyExcelExport';
 
 // ─── Brand Colors ─────────────────────────────────────────────────────────────
 const C = {
@@ -483,6 +484,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
   const [retentionMode, setRetentionMode] = useState<'weekly' | 'monthly'>('monthly');
   const [voucherStats, setVoucherStats] = useState<any>(null);
   const [downloadingMembers, setDownloadingMembers] = useState(false);
+  const [showWeeklyDropdown, setShowWeeklyDropdown] = useState(false);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const weeklyDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (weeklyDropdownRef.current && !weeklyDropdownRef.current.contains(e.target as Node)) {
+        setShowWeeklyDropdown(false);
+      }
+    };
+    if (showWeeklyDropdown) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showWeeklyDropdown]);
+
+  const handleWeeklyDownload = async (week: WeekOption) => {
+    if (!week.available || downloadingExcel) return;
+    setDownloadingExcel(true);
+    setShowWeeklyDropdown(false);
+    try {
+      await downloadWeeklyExcel(week.monday, week.sunday);
+    } catch (err) {
+      console.error('Failed to generate weekly report:', err);
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true); setError(''); setSelectedWeek(null);
@@ -574,6 +602,94 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onClose }) => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Weekly Report Download */}
+            <div className="relative" ref={weeklyDropdownRef}>
+              <button
+                onClick={() => setShowWeeklyDropdown(!showWeeklyDropdown)}
+                disabled={downloadingExcel}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all hover:bg-white/10 active:scale-95 disabled:opacity-50"
+                style={{ background: `${C.green}33`, color: C.greenLt, border: `1px solid ${C.green}55` }}
+                title="Download Weekly Excel Report">
+                {downloadingExcel ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <FileSpreadsheet size={14} />
+                )}
+                <span className="hidden sm:inline">{downloadingExcel ? 'Generating...' : 'Weekly Report'}</span>
+                <ChevronDown size={12} className={`transition-transform ${showWeeklyDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown */}
+              {showWeeklyDropdown && (
+                <div className="absolute right-0 top-full mt-2 w-72 max-h-80 overflow-y-auto rounded-2xl border z-50"
+                  style={{
+                    background: 'rgba(10,22,16,0.98)',
+                    borderColor: C.gridLt,
+                    boxShadow: `0 12px 40px rgba(0,0,0,0.6), 0 0 30px rgba(0,107,63,0.15)`,
+                    backdropFilter: 'blur(20px)',
+                  }}>
+                  {/* Dropdown header */}
+                  <div className="px-4 py-3 border-b" style={{ borderColor: C.grid }}>
+                    <p className="text-xs font-black text-white">📥 Download Weekly Report</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Select a week period (Mon – Sun)</p>
+                  </div>
+
+                  {/* Week list grouped by month */}
+                  <div className="py-1">
+                    {(() => {
+                      const weeks = getAvailableWeeks(12);
+                      let lastMonth = '';
+                      return weeks.map((week, i) => {
+                        const showMonthHeader = week.monthGroup !== lastMonth;
+                        lastMonth = week.monthGroup;
+                        return (
+                          <React.Fragment key={i}>
+                            {showMonthHeader && (
+                              <div className="px-4 pt-3 pb-1">
+                                <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.amber }}>
+                                  {week.monthGroup}
+                                </p>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => handleWeeklyDownload(week)}
+                              disabled={!week.available}
+                              className="w-full text-left px-4 py-2.5 transition-all flex items-center gap-3 group"
+                              style={{
+                                opacity: week.available ? 1 : 0.4,
+                                cursor: week.available ? 'pointer' : 'not-allowed',
+                              }}
+                              onMouseEnter={(e) => { if (week.available) (e.currentTarget.style.background = 'rgba(0,107,63,0.15)'); }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
+                              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                                style={{ background: week.available ? `${C.green}33` : C.grid }}>
+                                <Download size={12} style={{ color: week.available ? C.greenLt : C.textDim }} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold truncate" style={{ color: week.available ? '#e5f0e8' : C.textDim }}>
+                                  {week.label}
+                                </p>
+                                {!week.available && (
+                                  <p className="text-[9px] mt-0.5" style={{ color: C.amber }}>Available after 10 PM Sunday</p>
+                                )}
+                              </div>
+                              {week.available && i === 0 && (
+                                <span className="text-[9px] font-black px-2 py-0.5 rounded-full shrink-0"
+                                  style={{ background: `${C.greenLt}20`, color: C.greenLt, border: `1px solid ${C.greenLt}30` }}>
+                                  Latest
+                                </span>
+                              )}
+                              {week.available && i > 0 && i === 0 && null}
+                            </button>
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button onClick={load} disabled={loading}
               className="p-2.5 rounded-xl transition-all disabled:opacity-40 hover:bg-white/5"
               style={{ color: C.text }} title="Refresh">
