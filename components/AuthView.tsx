@@ -6,6 +6,7 @@ import { User } from '../types';
 import { getBrandConfig } from '../services/branding';
 import { fetchAdminList } from '../services/adminConfig';
 import { AdminEntry } from '../types';
+import { validatePhoneNumber } from '../services/phoneValidation';
 
 interface AuthViewProps {
   onLogin: (user: User | null, isAdmin: boolean) => void;
@@ -189,8 +190,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
           return;
         }
 
-        if (phone.length < 8) {
-          setError('Please enter a valid phone number.');
+        const phoneError = validatePhoneNumber(countryCode, phone);
+        if (phoneError) {
+          setError(phoneError);
           setIsLoading(false);
           return;
         }
